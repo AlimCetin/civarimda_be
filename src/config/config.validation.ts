@@ -13,7 +13,12 @@ export function validateConfig(config: Record<string, unknown>) {
   }
 
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    const errorMsg = `
+❌ CRITICAL ERROR: Missing required environment variables: ${missing.join(', ')}
+💡 FIX: Please set these variables in your deployment environment (e.g., Render Dashboard > Environment).
+📚 See ENV_SETUP.md for details.
+    `.trim();
+    throw new Error(errorMsg);
   }
 
   const jwtSecret = config.JWT_SECRET as string;
@@ -27,7 +32,7 @@ export function validateConfig(config: Record<string, unknown>) {
     if (jwtSecret === 'secret' || jwtSecret === 'your-secret-key' || jwtSecret.length < 64) {
       throw new Error('JWT_SECRET must be at least 64 characters long in production');
     }
-    
+
     // Production'da MongoDB URI kontrolü
     const mongoUri = config.MONGODB_URI as string;
     if (mongoUri && (mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1'))) {
