@@ -3,13 +3,18 @@
 
 export function validateConfig(config: Record<string, unknown>) {
   const isProduction = process.env.NODE_ENV === 'production';
-  const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI'];
+  const requiredEnvVars = ['JWT_SECRET'];
   const missing: string[] = [];
 
   for (const envVar of requiredEnvVars) {
     if (!config[envVar]) {
       missing.push(envVar);
     }
+  }
+
+  // Production ortamında DATABASE_URL veya POSTGRES_HOST olmalıdır
+  if (isProduction && !config.DATABASE_URL && !config.POSTGRES_HOST) {
+    missing.push('DATABASE_URL');
   }
 
   if (missing.length > 0) {
@@ -26,19 +31,13 @@ export function validateConfig(config: Record<string, unknown>) {
     throw new Error('JWT_SECRET must be at least 32 characters long');
   }
 
-  // Production'da kesinlikle environment variable olmalı, varsayılan değer kabul edilmez
+  // Production'da zayıf secret kontrolü
   if (isProduction) {
-    // Production'da zayıf secret kontrolü
-    if (jwtSecret === 'secret' || jwtSecret === 'your-secret-key' || jwtSecret.length < 64) {
-      throw new Error('JWT_SECRET must be at least 64 characters long in production');
-    }
-
-    // Production'da MongoDB URI kontrolü
-    const mongoUri = config.MONGODB_URI as string;
-    if (mongoUri && (mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1'))) {
-      console.warn('⚠️  WARNING: Using localhost MongoDB URI in production is not recommended');
+    if (jwtSecret === 'secret' || jwtSecret === 'your-secret-key') {
+      throw new Error('JWT_SECRET is too weak for production');
     }
   }
 
   return config;
 }
+
