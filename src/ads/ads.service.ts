@@ -1,16 +1,17 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Ad, AdStatus } from '../entities/ad.entity';
 import { ActivityLog, ActivityType } from '../entities/activity-log.entity';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
+import { isValidId } from '../common/utils/id.util';
 
 @Injectable()
 export class AdsService {
   constructor(
-    @InjectModel(Ad.name) private adModel: Model<Ad>,
-    @InjectModel(ActivityLog.name) private activityLogModel: Model<ActivityLog>,
+    @InjectRepository(Ad) private adRepository: Repository<Ad>,
+    @InjectRepository(ActivityLog) private activityLogRepository: Repository<ActivityLog>,
   ) {}
 
   async create(createAdDto: CreateAdDto, adminId: string) {
@@ -21,7 +22,7 @@ export class AdsService {
       throw new BadRequestException('End date must be after start date');
     }
 
-    const ad = await this.adModel.create({
+    const ad = this.adRepository.create({
       ...createAdDto,
       startDate,
       endDate,
@@ -32,43 +33,40 @@ export class AdsService {
       impressionCount: 0,
       spentAmount: 0,
     });
+    await this.adRepository.save(ad);
 
-    // Log activity
-    await this.activityLogModel.create({
+    const log = this.activityLogRepository.create({
       adminId,
       activityType: ActivityType.AD_CREATED,
-      targetAdId: ad._id.toString(),
+      targetAdId: ad.id,
       description: `Ad created: ${ad.title}`,
-      metadata: { adId: ad._id.toString() },
+      metadata: { adId: ad.id },
     });
+    await this.activityLogRepository.save(log);
 
     return ad;
   }
 
-  async findAll(
-    status?: AdStatus,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  async findAll(status?: AdStatus, page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit;
     const maxLimit = Math.min(limit, 100);
 
-    const filter: any = {};
-    if (status) filter.status = status;
+    const query = this.adRepository.createQueryBuilder('ad');
 
-    const ads = await this.adModel
-      .find(filter)
-      .populate('createdBy', 'fullName avatar')
-      .sort({ createdAt: -1 })
+    if (status) {
+      query.andWhere('ad.status = :status', { status });
+    }
+
+    const [ads, total] = await query
+      .orderBy('ad.createdAt', 'DESC')
       .skip(skip)
-      .limit(maxLimit)
-      .lean();
-
-    const total = await this.adModel.countDocuments(filter);
+      .take(maxLimit)
+      .getManyAndCount();
 
     return {
-      ads: ads.map((ad: any) => ({
-        id: ad._id.toString(),
+      ads: ads.map((ad) => ({
+        id: ad.id,
+        _id: ad.id,
         title: ad.title,
         type: ad.type,
         mediaUrl: ad.mediaUrl,
@@ -80,11 +78,11 @@ export class AdsService {
         clickCount: ad.clickCount || 0,
         viewCount: ad.viewCount || 0,
         impressionCount: ad.impressionCount || 0,
-        createdBy: (ad.createdBy && typeof ad.createdBy === 'object' ? ((ad.createdBy as any)._id || ad.createdBy) : ad.createdBy)?.toString(),
+        createdBy: ad.createdBy,
         maxImpressions: ad.maxImpressions || 0,
-        budget: ad.budget || 0,
-        spentAmount: ad.spentAmount || 0,
-        createdAt: (ad as any).createdAt || new Date(),
+        budget: Number(ad.budget) || 0,
+        spentAmount: Number(ad.spentAmount) || 0,
+        createdAt: ad.createdAt,
       })),
       pagination: {
         page,
@@ -97,18 +95,16 @@ export class AdsService {
 
   async getActiveAds() {
     const now = new Date();
-    const ads = await this.adModel.find({
-      status: AdStatus.ACTIVE,
-      startDate: { $lte: now },
-      endDate: { $gte: now },
-      $or: [
-        { maxImpressions: 0 },
-        { $expr: { $lt: ['$impressionCount', '$maxImpressions'] } },
-      ],
-    }).lean();
-    
-    return ads.map((ad: any) => ({
-      id: ad._id.toString(),
+    const ads = await this.adRepository
+      .createQueryBuilder('ad')
+      .where('ad.status = :status', { status: AdStatus.ACTIVE })
+      .andWhere('ad.startDate <= :now AND ad.endDate >= :now', { now })
+      .andWhere('(ad.maxImpressions = 0 OR ad.impressionCount < ad.maxImpressions)')
+      .getMany();
+
+    return ads.map((ad) => ({
+      id: ad.id,
+      _id: ad.id,
       title: ad.title,
       type: ad.type,
       mediaUrl: ad.mediaUrl,
@@ -120,30 +116,27 @@ export class AdsService {
       clickCount: ad.clickCount || 0,
       viewCount: ad.viewCount || 0,
       impressionCount: ad.impressionCount || 0,
-      createdBy: (ad.createdBy && typeof ad.createdBy === 'object' ? ((ad.createdBy as any)._id || ad.createdBy) : ad.createdBy)?.toString(),
+      createdBy: ad.createdBy,
       maxImpressions: ad.maxImpressions || 0,
-      budget: ad.budget || 0,
-      spentAmount: ad.spentAmount || 0,
-      createdAt: (ad as any).createdAt || new Date(),
+      budget: Number(ad.budget) || 0,
+      spentAmount: Number(ad.spentAmount) || 0,
+      createdAt: ad.createdAt,
     }));
   }
 
   async findOne(adId: string) {
-    if (!Types.ObjectId.isValid(adId)) {
+    if (!isValidId(adId)) {
       throw new BadRequestException('Invalid ad ID format');
     }
 
-    const ad = await this.adModel
-      .findById(adId)
-      .populate('createdBy', 'fullName avatar')
-      .lean();
-
+    const ad = await this.adRepository.findOne({ where: { id: adId } });
     if (!ad) {
       throw new NotFoundException('Ad not found');
     }
 
     return {
-      id: ad._id.toString(),
+      id: ad.id,
+      _id: ad.id,
       title: ad.title,
       type: ad.type,
       mediaUrl: ad.mediaUrl,
@@ -155,20 +148,20 @@ export class AdsService {
       clickCount: ad.clickCount || 0,
       viewCount: ad.viewCount || 0,
       impressionCount: ad.impressionCount || 0,
-      createdBy: (ad.createdBy && typeof ad.createdBy === 'object' ? ((ad.createdBy as any)._id || ad.createdBy) : ad.createdBy)?.toString(),
+      createdBy: ad.createdBy,
       maxImpressions: ad.maxImpressions || 0,
-      budget: ad.budget || 0,
-      spentAmount: ad.spentAmount || 0,
-      createdAt: (ad as any).createdAt || new Date(),
+      budget: Number(ad.budget) || 0,
+      spentAmount: Number(ad.spentAmount) || 0,
+      createdAt: ad.createdAt,
     };
   }
 
   async update(adId: string, updateAdDto: UpdateAdDto, adminId: string) {
-    if (!Types.ObjectId.isValid(adId)) {
+    if (!isValidId(adId)) {
       throw new BadRequestException('Invalid ad ID format');
     }
 
-    const ad = await this.adModel.findById(adId);
+    const ad = await this.adRepository.findOne({ where: { id: adId } });
     if (!ad) {
       throw new NotFoundException('Ad not found');
     }
@@ -182,123 +175,107 @@ export class AdsService {
     }
 
     Object.assign(ad, updateData);
-    await ad.save();
+    await this.adRepository.save(ad);
 
-    // Log activity
-    await this.activityLogModel.create({
+    const log = this.activityLogRepository.create({
       adminId,
       activityType: ActivityType.AD_UPDATED,
       targetAdId: adId,
       description: `Ad updated: ${ad.title}`,
       metadata: { adId, updates: updateAdDto },
     });
+    await this.activityLogRepository.save(log);
 
     return ad;
   }
 
   async delete(adId: string, adminId: string) {
-    if (!Types.ObjectId.isValid(adId)) {
+    if (!isValidId(adId)) {
       throw new BadRequestException('Invalid ad ID format');
     }
 
-    const ad = await this.adModel.findById(adId);
+    const ad = await this.adRepository.findOne({ where: { id: adId } });
     if (!ad) {
       throw new NotFoundException('Ad not found');
     }
 
-    await this.adModel.findByIdAndDelete(adId);
+    await this.adRepository.delete({ id: adId });
 
-    // Log activity
-    await this.activityLogModel.create({
+    const log = this.activityLogRepository.create({
       adminId,
       activityType: ActivityType.AD_DELETED,
       targetAdId: adId,
       description: `Ad deleted: ${ad.title}`,
       metadata: { adId },
     });
+    await this.activityLogRepository.save(log);
 
     return { success: true };
   }
 
   async recordImpression(adId: string) {
-    await this.adModel.findByIdAndUpdate(adId, {
-      $inc: { impressionCount: 1 },
-    });
+    await this.adRepository.increment({ id: adId }, 'impressionCount', 1);
   }
 
   async recordClick(adId: string) {
-    await this.adModel.findByIdAndUpdate(adId, {
-      $inc: { clickCount: 1 },
-    });
+    await this.adRepository.increment({ id: adId }, 'clickCount', 1);
   }
 
   async recordView(adId: string) {
-    await this.adModel.findByIdAndUpdate(adId, {
-      $inc: { viewCount: 1 },
-    });
+    await this.adRepository.increment({ id: adId }, 'viewCount', 1);
   }
 
   async getStatistics(adId?: string) {
     if (adId) {
-      const ad = await this.adModel.findById(adId);
+      const ad = await this.adRepository.findOne({ where: { id: adId } });
       if (!ad) {
         throw new NotFoundException('Ad not found');
       }
       return {
-        adId: ad._id.toString(),
+        adId: ad.id,
         title: ad.title,
         clickCount: ad.clickCount,
         viewCount: ad.viewCount,
         impressionCount: ad.impressionCount,
         ctr: ad.impressionCount > 0 ? (ad.clickCount / ad.impressionCount) * 100 : 0,
-        spentAmount: ad.spentAmount,
-        budget: ad.budget,
-        remainingBudget: ad.budget - ad.spentAmount,
+        spentAmount: Number(ad.spentAmount) || 0,
+        budget: Number(ad.budget) || 0,
+        remainingBudget: (Number(ad.budget) || 0) - (Number(ad.spentAmount) || 0),
       };
     }
 
-    // Overall statistics
-    const totalAds = await this.adModel.countDocuments();
-    const activeAds = await this.adModel.countDocuments({ status: AdStatus.ACTIVE });
-    const pausedAds = await this.adModel.countDocuments({ status: AdStatus.PAUSED });
-    const expiredAds = await this.adModel.countDocuments({ status: AdStatus.EXPIRED });
+    const totalAds = await this.adRepository.count();
+    const activeAds = await this.adRepository.count({ where: { status: AdStatus.ACTIVE } });
+    const pausedAds = await this.adRepository.count({ where: { status: AdStatus.PAUSED } });
+    const expiredAds = await this.adRepository.count({ where: { status: AdStatus.EXPIRED } });
 
-    const totalStats = await this.adModel.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalClicks: { $sum: '$clickCount' },
-          totalViews: { $sum: '$viewCount' },
-          totalImpressions: { $sum: '$impressionCount' },
-          totalSpent: { $sum: '$spentAmount' },
-          totalBudget: { $sum: '$budget' },
-        },
-      },
-    ]);
+    const statsRaw = await this.adRepository
+      .createQueryBuilder('ad')
+      .select('SUM(ad.clickCount)', 'totalClicks')
+      .addSelect('SUM(ad.viewCount)', 'totalViews')
+      .addSelect('SUM(ad.impressionCount)', 'totalImpressions')
+      .addSelect('SUM(ad.spentAmount)', 'totalSpent')
+      .addSelect('SUM(ad.budget)', 'totalBudget')
+      .getRawOne();
 
-    const stats = totalStats[0] || {
-      totalClicks: 0,
-      totalViews: 0,
-      totalImpressions: 0,
-      totalSpent: 0,
-      totalBudget: 0,
-    };
+    const totalClicks = parseInt(statsRaw?.totalClicks || '0');
+    const totalViews = parseInt(statsRaw?.totalViews || '0');
+    const totalImpressions = parseInt(statsRaw?.totalImpressions || '0');
+    const totalSpent = parseFloat(statsRaw?.totalSpent || '0');
+    const totalBudget = parseFloat(statsRaw?.totalBudget || '0');
 
     return {
       totalAds,
       activeAds,
       pausedAds,
       expiredAds,
-      totalClicks: stats.totalClicks,
-      totalViews: stats.totalViews,
-      totalImpressions: stats.totalImpressions,
-      totalCTR: stats.totalImpressions > 0
-        ? (stats.totalClicks / stats.totalImpressions) * 100
-        : 0,
-      totalSpent: stats.totalSpent,
-      totalBudget: stats.totalBudget,
-      remainingBudget: stats.totalBudget - stats.totalSpent,
+      totalClicks,
+      totalViews,
+      totalImpressions,
+      totalCTR: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+      totalSpent,
+      totalBudget,
+      remainingBudget: totalBudget - totalSpent,
     };
   }
 }
-

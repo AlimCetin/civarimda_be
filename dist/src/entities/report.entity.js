@@ -9,9 +9,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReportSchema = exports.Report = exports.ReportPriority = exports.ReportStatus = exports.ReportReason = exports.ReportType = void 0;
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+exports.Report = exports.ReportPriority = exports.ReportStatus = exports.ReportReason = exports.ReportType = void 0;
+const typeorm_1 = require("typeorm");
+const crypto_1 = require("crypto");
 var ReportType;
 (function (ReportType) {
     ReportType["USER"] = "user";
@@ -43,7 +43,11 @@ var ReportPriority;
     ReportPriority["HIGH"] = "high";
     ReportPriority["URGENT"] = "urgent";
 })(ReportPriority || (exports.ReportPriority = ReportPriority = {}));
-let Report = class Report extends mongoose_2.Document {
+let Report = class Report {
+    id;
+    get _id() {
+        return this.id;
+    }
     reporterId;
     reportedId;
     type;
@@ -55,58 +59,97 @@ let Report = class Report extends mongoose_2.Document {
     reviewedAt;
     adminNote;
     reportCount;
+    createdAt;
+    updatedAt;
+    generateId() {
+        if (!this.id) {
+            this.id = (0, crypto_1.randomUUID)();
+        }
+    }
+    populateVirtuals() {
+        this._id = this.id;
+    }
+    toObject() {
+        return {
+            ...this,
+            _id: this.id,
+        };
+    }
 };
 exports.Report = Report;
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, type: String, ref: 'User' }),
+    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    __metadata("design:type", String)
+], Report.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], Report.prototype, "reporterId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, type: String }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], Report.prototype, "reportedId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, enum: ReportType }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50 }),
     __metadata("design:type", String)
 ], Report.prototype, "type", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, enum: ReportReason }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50 }),
     __metadata("design:type", String)
 ], Report.prototype, "reason", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: '' }),
+    (0, typeorm_1.Column)({ type: 'text', default: '' }),
     __metadata("design:type", String)
 ], Report.prototype, "description", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ enum: ReportStatus, default: ReportStatus.PENDING }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: ReportStatus.PENDING }),
     __metadata("design:type", String)
 ], Report.prototype, "status", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ enum: ReportPriority, default: ReportPriority.MEDIUM }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: ReportPriority.MEDIUM }),
     __metadata("design:type", String)
 ], Report.prototype, "priority", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: String, ref: 'User', default: null }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64, nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Report.prototype, "reviewedBy", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: null }),
-    __metadata("design:type", Date)
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone', nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Report.prototype, "reviewedAt", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: '' }),
+    (0, typeorm_1.Column)({ type: 'text', default: '' }),
     __metadata("design:type", String)
 ], Report.prototype, "adminNote", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 1 }),
+    (0, typeorm_1.Column)({ type: 'int', default: 1 }),
     __metadata("design:type", Number)
 ], Report.prototype, "reportCount", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Report.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Report.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_1.BeforeInsert)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Report.prototype, "generateId", null);
+__decorate([
+    (0, typeorm_1.AfterLoad)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Report.prototype, "populateVirtuals", null);
 exports.Report = Report = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, typeorm_1.Entity)('reports'),
+    (0, typeorm_1.Index)(['status', 'priority', 'createdAt']),
+    (0, typeorm_1.Index)(['reportedId', 'type']),
+    (0, typeorm_1.Index)(['reporterId']),
+    (0, typeorm_1.Index)(['reviewedBy'])
 ], Report);
-exports.ReportSchema = mongoose_1.SchemaFactory.createForClass(Report);
-exports.ReportSchema.index({ status: 1, priority: -1, createdAt: -1 });
-exports.ReportSchema.index({ reportedId: 1, type: 1 });
-exports.ReportSchema.index({ reporterId: 1 });
-exports.ReportSchema.index({ reviewedBy: 1 });
 //# sourceMappingURL=report.entity.js.map

@@ -1,28 +1,42 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DatabaseModule = void 0;
-const mongoose_1 = require("@nestjs/mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
 const config_1 = require("@nestjs/config");
-exports.DatabaseModule = mongoose_1.MongooseModule.forRootAsync({
+exports.DatabaseModule = typeorm_1.TypeOrmModule.forRootAsync({
     inject: [config_1.ConfigService],
     useFactory: (configService) => {
-        const uri = configService.get('MONGODB_URI');
-        if (!uri) {
-            throw new Error('MONGODB_URI environment variable is required');
-        }
         const isProduction = configService.get('NODE_ENV') === 'production';
+        const databaseUrl = configService.get('DATABASE_URL');
+        if (databaseUrl) {
+            return {
+                type: 'postgres',
+                url: databaseUrl,
+                autoLoadEntities: true,
+                synchronize: configService.get('TYPEORM_SYNC', true),
+                ssl: isProduction && configService.get('POSTGRES_SSL') === 'true' ? { rejectUnauthorized: false } : false,
+                extra: {
+                    max: configService.get('POSTGRES_MAX_POOL_SIZE', isProduction ? 30 : 10),
+                    idleTimeoutMillis: 30000,
+                    connectionTimeoutMillis: 5000,
+                },
+            };
+        }
         return {
-            uri,
-            maxPoolSize: configService.get('MONGODB_MAX_POOL_SIZE', isProduction ? 50 : 10),
-            minPoolSize: configService.get('MONGODB_MIN_POOL_SIZE', isProduction ? 10 : 2),
-            serverSelectionTimeoutMS: 5000,
-            socketTimeoutMS: 45000,
-            connectTimeoutMS: 10000,
-            heartbeatFrequencyMS: 10000,
-            maxIdleTimeMS: 60000,
-            retryWrites: true,
-            retryReads: true,
-            monitorCommands: !isProduction,
+            type: 'postgres',
+            host: configService.get('POSTGRES_HOST', 'localhost'),
+            port: configService.get('POSTGRES_PORT', 5432),
+            username: configService.get('POSTGRES_USERNAME', 'postgres'),
+            password: configService.get('POSTGRES_PASSWORD', 'postgres'),
+            database: configService.get('POSTGRES_DATABASE', 'civarimda'),
+            autoLoadEntities: true,
+            synchronize: configService.get('TYPEORM_SYNC', true),
+            ssl: isProduction && configService.get('POSTGRES_SSL') === 'true' ? { rejectUnauthorized: false } : false,
+            extra: {
+                max: configService.get('POSTGRES_MAX_POOL_SIZE', isProduction ? 30 : 10),
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 5000,
+            },
         };
     },
 });

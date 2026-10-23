@@ -1,43 +1,82 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
-@Schema({ timestamps: true })
-export class Post extends Document {
-  @Prop({ required: true, type: String, ref: 'User' })
+@Entity('posts')
+@Index(['userId', 'createdAt'])
+@Index(['createdAt'])
+export class Post {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
+
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'varchar', length: 64 })
   userId: string;
 
-  @Prop({ required: false })
-  image: string;
+  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
+  image: string | null;
 
-  @Prop({ required: false })
-  video?: string;
+  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
+  video?: string | null;
 
-  @Prop({ default: '' })
+  @Column({ type: 'text', default: '' })
   caption: string;
 
-  @Prop({ type: [{ type: String, ref: 'User' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   likes: string[];
 
-  @Prop({ default: 0 })
+  @Column({ type: 'int', default: 0 })
   commentCount: number;
 
-  @Prop({ default: false })
+  @Column({ type: 'boolean', default: false })
   isHidden: boolean;
 
-  @Prop({ default: false })
+  @Column({ type: 'boolean', default: false })
   isPrivate: boolean;
 
-  @Prop({ type: [{ type: String, ref: 'User' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   hiddenFromFollowers: string[];
 
-  @Prop({ default: null })
-  deletedAt: Date;
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
+  deletedAt: Date | null;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+    if (!this.likes) this.likes = [];
+    if (!this.hiddenFromFollowers) this.hiddenFromFollowers = [];
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+      likes: this.likes || [],
+      hiddenFromFollowers: this.hiddenFromFollowers || [],
+    };
+  }
 }
-
-export const PostSchema = SchemaFactory.createForClass(Post);
-
-// Indexes for performance
-PostSchema.index({ userId: 1, createdAt: -1 }); // Compound index for user posts feed
-PostSchema.index({ createdAt: -1 }); // For sorting by date
-PostSchema.index({ likes: 1 }); // For like queries
-

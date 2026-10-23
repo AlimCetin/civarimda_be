@@ -11,7 +11,12 @@ function validateConfig(config) {
         }
     }
     if (missing.length > 0) {
-        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+        const errorMsg = `
+❌ CRITICAL ERROR: Missing required environment variables: ${missing.join(', ')}
+💡 FIX: Please set these variables in your deployment environment (e.g., Render Dashboard > Environment).
+📚 See ENV_SETUP.md for details.
+    `.trim();
+        throw new Error(errorMsg);
     }
     const jwtSecret = config.JWT_SECRET;
     if (jwtSecret && jwtSecret.length < 32) {

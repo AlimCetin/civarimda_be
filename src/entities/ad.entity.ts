@@ -1,5 +1,14 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
 export enum AdType {
   IMAGE = 'image',
@@ -13,58 +22,85 @@ export enum AdStatus {
   DRAFT = 'draft',
 }
 
-@Schema({ timestamps: true })
-export class Ad extends Document {
-  @Prop({ required: true })
+@Entity('ads')
+@Index(['status', 'startDate', 'endDate'])
+@Index(['createdBy'])
+@Index(['createdAt'])
+export class Ad {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
+
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'varchar', length: 255 })
   title: string;
 
-  @Prop({ required: true, enum: AdType })
+  @Column({ type: 'varchar', length: 50 })
   type: AdType;
 
-  @Prop({ required: true })
-  mediaUrl: string; // Resim veya video URL'i
+  @Column({ type: 'varchar', length: 500 })
+  mediaUrl: string;
 
-  @Prop({ required: true })
-  linkUrl: string; // Reklama tıklanınca gidilecek URL
+  @Column({ type: 'varchar', length: 500 })
+  linkUrl: string;
 
-  @Prop({ default: '' })
+  @Column({ type: 'text', default: '' })
   description: string;
 
-  @Prop({ enum: AdStatus, default: AdStatus.DRAFT })
+  @Column({ type: 'varchar', length: 50, default: AdStatus.DRAFT })
   status: AdStatus;
 
-  @Prop({ required: true })
+  @Column({ type: 'timestamp with time zone' })
   startDate: Date;
 
-  @Prop({ required: true })
+  @Column({ type: 'timestamp with time zone' })
   endDate: Date;
 
-  @Prop({ default: 0 })
-  clickCount: number; // Tıklanma sayısı
+  @Column({ type: 'int', default: 0 })
+  clickCount: number;
 
-  @Prop({ default: 0 })
-  viewCount: number; // Görüntülenme sayısı
+  @Column({ type: 'int', default: 0 })
+  viewCount: number;
 
-  @Prop({ default: 0 })
-  impressionCount: number; // Gösterim sayısı
+  @Column({ type: 'int', default: 0 })
+  impressionCount: number;
 
-  @Prop({ type: String, ref: 'User' })
-  createdBy: string; // Oluşturan admin
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  createdBy: string | null;
 
-  @Prop({ default: 0 })
-  maxImpressions: number; // Maksimum gösterim sayısı (0 = sınırsız)
+  @Column({ type: 'int', default: 0 })
+  maxImpressions: number;
 
-  @Prop({ default: 0 })
-  budget: number; // Reklam bütçesi
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  budget: number;
 
-  @Prop({ default: 0 })
-  spentAmount: number; // Harcanan miktar
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  spentAmount: number;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+    };
+  }
 }
-
-export const AdSchema = SchemaFactory.createForClass(Ad);
-
-// Indexes for performance
-AdSchema.index({ status: 1, startDate: 1, endDate: 1 });
-AdSchema.index({ createdBy: 1 });
-AdSchema.index({ createdAt: -1 });
-

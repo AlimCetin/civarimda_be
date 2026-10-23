@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { InjectConnection } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { RedisService } from '../common/redis/redis.service';
 
 @Injectable()
@@ -8,7 +8,7 @@ export class HealthService {
   private startTime: number = Date.now();
 
   constructor(
-    @InjectConnection() private connection: Connection,
+    @InjectDataSource() private dataSource: DataSource,
     private redisService: RedisService,
   ) {}
 
@@ -69,35 +69,27 @@ export class HealthService {
   }
 
   /**
-   * Check MongoDB connection
+   * Check PostgreSQL connection
    */
   private async checkDatabase() {
     try {
-      const state = this.connection.readyState;
-      const states: Record<number, string> = {
-        0: 'disconnected',
-        1: 'connected',
-        2: 'connecting',
-        3: 'disconnecting',
-      };
-
-      if (state === 1 && this.connection.db) {
-        // Test the connection
-        await this.connection.db.admin().ping();
-
-        return {
-          status: 'up',
-          state: states[state],
-          host: this.connection.host,
-          name: this.connection.name,
-        };
-      } else {
+      if (!this.dataSource || !this.dataSource.isInitialized) {
         return {
           status: 'down',
-          state: states[state] || 'unknown',
-          message: 'Database not connected',
+          state: 'disconnected',
+          message: 'PostgreSQL database not initialized',
         };
       }
+
+      // Test connection
+      await this.dataSource.query('SELECT 1');
+
+      return {
+        status: 'up',
+        state: 'connected',
+        type: 'postgres',
+        database: (this.dataSource.options as any).database || 'civarimda',
+      };
     } catch (error: any) {
       return {
         status: 'down',
@@ -120,7 +112,6 @@ export class HealthService {
         };
       }
 
-      // Try to ping Redis
       try {
         const result = await client.ping();
         
@@ -145,27 +136,27 @@ export class HealthService {
   }
 
   /**
-   * Get database metrics (connection pool, etc.)
+   * Get database metrics (table count, size, etc.)
    */
   private async getDatabaseMetrics() {
     try {
-      const db = this.connection.db;
-      
-      if (!db) {
+      if (!this.dataSource || !this.dataSource.isInitialized) {
         return {
           error: 'Database not connected',
         };
       }
-      
-      // Get database stats
-      const stats = await db.stats();
-      
+
+      const [tableCountResult] = await this.dataSource.query(
+        `SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'`
+      );
+      const [dbSizeResult] = await this.dataSource.query(
+        `SELECT pg_size_pretty(pg_database_size(current_database())) as size`
+      );
+
       return {
-        collections: stats.collections,
-        dataSize: this.formatBytes(stats.dataSize),
-        indexSize: this.formatBytes(stats.indexSize),
-        storageSize: this.formatBytes(stats.storageSize),
-        indexes: stats.indexes,
+        type: 'PostgreSQL',
+        tables: Number(tableCountResult?.count || 0),
+        databaseSize: dbSizeResult?.size || 'unknown',
       };
     } catch (error: any) {
       return {
@@ -194,9 +185,6 @@ export class HealthService {
     };
   }
 
-  /**
-   * Format bytes to human readable format
-   */
   private formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -205,9 +193,6 @@ export class HealthService {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  /**
-   * Format uptime to human readable format
-   */
   private formatUptime(seconds: number): string {
     const days = Math.floor(seconds / (3600 * 24));
     const hours = Math.floor((seconds % (3600 * 24)) / 3600);
@@ -223,4 +208,3 @@ export class HealthService {
     return parts.join(' ');
   }
 }
-

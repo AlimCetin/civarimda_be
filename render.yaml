@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: tosyam-be
+    name: civarimda-be
     runtime: docker
     plan: free
     region: frankfurt
@@ -9,7 +9,7 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: MONGODB_URI
+      - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
         sync: false

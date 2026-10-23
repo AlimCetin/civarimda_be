@@ -8,7 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminModule = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
 const admin_controller_1 = require("./admin.controller");
 const admin_service_1 = require("./admin.service");
 const user_entity_1 = require("../entities/user.entity");
@@ -22,10 +22,10 @@ exports.AdminModule = AdminModule;
 exports.AdminModule = AdminModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            mongoose_1.MongooseModule.forFeature([
-                { name: user_entity_1.User.name, schema: user_entity_1.UserSchema },
-                { name: activity_log_entity_1.ActivityLog.name, schema: activity_log_entity_1.ActivityLogSchema },
-                { name: post_entity_1.Post.name, schema: post_entity_1.PostSchema },
+            typeorm_1.TypeOrmModule.forFeature([
+                user_entity_1.User,
+                activity_log_entity_1.ActivityLog,
+                post_entity_1.Post,
             ]),
         ],
         controllers: [admin_controller_1.AdminController],

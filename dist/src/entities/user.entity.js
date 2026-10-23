@@ -9,10 +9,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserSchema = exports.User = void 0;
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
-let User = class User extends mongoose_2.Document {
+exports.User = void 0;
+const typeorm_1 = require("typeorm");
+const crypto_1 = require("crypto");
+let User = class User {
+    id;
+    get _id() {
+        return this.id;
+    }
     fullName;
     avatar;
     bio;
@@ -30,88 +34,138 @@ let User = class User extends mongoose_2.Document {
     bannedUntil;
     isPermanentlyBanned;
     deletedAt;
+    createdAt;
+    updatedAt;
+    generateId() {
+        if (!this.id) {
+            this.id = (0, crypto_1.randomUUID)();
+        }
+    }
+    populateVirtuals() {
+        this._id = this.id;
+        if (!this.followers)
+            this.followers = [];
+        if (!this.following)
+            this.following = [];
+        if (!this.blockedUsers)
+            this.blockedUsers = [];
+        if (!this.savedPosts)
+            this.savedPosts = [];
+        if (!this.hiddenFollowers)
+            this.hiddenFollowers = [];
+        if (!this.hiddenFollowing)
+            this.hiddenFollowing = [];
+    }
+    toObject() {
+        return {
+            ...this,
+            _id: this.id,
+            followers: this.followers || [],
+            following: this.following || [],
+            blockedUsers: this.blockedUsers || [],
+            savedPosts: this.savedPosts || [],
+            hiddenFollowers: this.hiddenFollowers || [],
+            hiddenFollowing: this.hiddenFollowing || [],
+        };
+    }
 };
 exports.User = User;
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, trim: true }),
+    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    __metadata("design:type", String)
+], User.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
     __metadata("design:type", String)
 ], User.prototype, "fullName", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: null }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 500, nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], User.prototype, "avatar", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: '' }),
+    (0, typeorm_1.Column)({ type: 'text', default: '' }),
     __metadata("design:type", String)
 ], User.prototype, "bio", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{ type: String, ref: 'User' }], default: [] }),
+    (0, typeorm_1.Column)({ type: 'text', array: true, default: '{}' }),
     __metadata("design:type", Array)
 ], User.prototype, "followers", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{ type: String, ref: 'User' }], default: [] }),
+    (0, typeorm_1.Column)({ type: 'text', array: true, default: '{}' }),
     __metadata("design:type", Array)
 ], User.prototype, "following", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{ type: String, ref: 'User' }], default: [] }),
+    (0, typeorm_1.Column)({ type: 'text', array: true, default: '{}' }),
     __metadata("design:type", Array)
 ], User.prototype, "blockedUsers", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{ type: String, ref: 'Post' }], default: [] }),
+    (0, typeorm_1.Column)({ type: 'text', array: true, default: '{}' }),
     __metadata("design:type", Array)
 ], User.prototype, "savedPosts", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: false }),
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
 ], User.prototype, "isVerified", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: false }),
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
 ], User.prototype, "hideFollowers", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: false }),
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
 ], User.prototype, "hideFollowing", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{ type: String, ref: 'User' }], default: [] }),
+    (0, typeorm_1.Column)({ type: 'text', array: true, default: '{}' }),
     __metadata("design:type", Array)
 ], User.prototype, "hiddenFollowers", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{ type: String, ref: 'User' }], default: [] }),
+    (0, typeorm_1.Column)({ type: 'text', array: true, default: '{}' }),
     __metadata("design:type", Array)
 ], User.prototype, "hiddenFollowing", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({
-        type: String,
-        enum: ['user', 'moderator', 'admin', 'super_admin'],
-        default: 'user'
-    }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: 'user' }),
     __metadata("design:type", String)
 ], User.prototype, "role", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
 ], User.prototype, "warningCount", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: Date, default: null }),
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone', nullable: true, default: null }),
     __metadata("design:type", Object)
 ], User.prototype, "bannedUntil", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: false }),
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
 ], User.prototype, "isPermanentlyBanned", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: Date, default: null }),
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone', nullable: true, default: null }),
     __metadata("design:type", Object)
 ], User.prototype, "deletedAt", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], User.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], User.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_1.BeforeInsert)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], User.prototype, "generateId", null);
+__decorate([
+    (0, typeorm_1.AfterLoad)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], User.prototype, "populateVirtuals", null);
 exports.User = User = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, typeorm_1.Entity)('users'),
+    (0, typeorm_1.Index)(['fullName']),
+    (0, typeorm_1.Index)(['role']),
+    (0, typeorm_1.Index)(['isPermanentlyBanned', 'bannedUntil'])
 ], User);
-exports.UserSchema = mongoose_1.SchemaFactory.createForClass(User);
-exports.UserSchema.index({ fullName: 1 });
-exports.UserSchema.index({ role: 1 });
-exports.UserSchema.index({ followers: 1 });
-exports.UserSchema.index({ following: 1 });
-exports.UserSchema.index({ blockedUsers: 1 });
-exports.UserSchema.index({ isPermanentlyBanned: 1, bannedUntil: 1 });
 //# sourceMappingURL=user.entity.js.map

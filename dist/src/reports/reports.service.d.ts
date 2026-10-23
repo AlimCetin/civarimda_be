@@ -1,41 +1,41 @@
-import { Model, Types } from 'mongoose';
+import { Repository } from 'typeorm';
 import { Report, ReportStatus, ReportPriority, ReportType } from '../entities/report.entity';
+import { Post } from '../entities/post.entity';
+import { User } from '../entities/user.entity';
+import { Comment } from '../entities/comment.entity';
+import { Message } from '../entities/message.entity';
 import { CreateReportDto } from './dto/create-report.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 export declare class ReportsService {
-    private reportModel;
-    private postModel;
-    private userModel;
-    private commentModel;
-    private messageModel;
-    constructor(reportModel: Model<Report>, postModel: Model<any>, userModel: Model<any>, commentModel: Model<any>, messageModel: Model<any>);
-    create(userId: string, createReportDto: CreateReportDto): Promise<import("mongoose").Document<unknown, {}, Report, {}, import("mongoose").DefaultSchemaOptions> & Report & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
+    private reportRepository;
+    private postRepository;
+    private userRepository;
+    private commentRepository;
+    private messageRepository;
+    constructor(reportRepository: Repository<Report>, postRepository: Repository<Post>, userRepository: Repository<User>, commentRepository: Repository<Comment>, messageRepository: Repository<Message>);
+    create(userId: string, createReportDto: CreateReportDto): Promise<Report>;
     findAll(status?: ReportStatus, type?: ReportType, priority?: ReportPriority, page?: number, limit?: number): Promise<{
         reports: {
-            id: any;
-            reporterId: any;
-            reportedId: any;
-            type: any;
-            reason: any;
-            description: any;
-            status: any;
-            priority: any;
-            reviewedBy: any;
-            reviewedAt: any;
-            adminNote: any;
-            reportCount: any;
+            id: string;
+            _id: string;
+            reporterId: string;
+            reportedId: string;
+            type: ReportType;
+            reason: import("../entities/report.entity").ReportReason;
+            description: string;
+            status: ReportStatus;
+            priority: ReportPriority;
+            reviewedBy: string | null;
+            reviewedAt: Date | null;
+            adminNote: string;
+            reportCount: number;
             reporter: {
-                id: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                fullName: string;
+                avatar: string | null;
             } | null;
-            createdAt: any;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -46,32 +46,28 @@ export declare class ReportsService {
     }>;
     findOne(reportId: string): Promise<{
         id: string;
-        reporterId: any;
+        _id: string;
+        reporterId: string;
         reportedId: string;
         type: ReportType;
         reason: import("../entities/report.entity").ReportReason;
         description: string;
         status: ReportStatus;
         priority: ReportPriority;
-        reviewedBy: any;
-        reviewedAt: Date;
+        reviewedBy: string | null;
+        reviewedAt: Date | null;
         adminNote: string;
         reportCount: number;
         reporter: {
-            id: any;
-            fullName: any;
-            avatar: any;
+            id: string;
+            _id: string;
+            fullName: string;
+            avatar: string | null;
         } | null;
         reportedItem: any;
-        createdAt: any;
+        createdAt: Date;
     }>;
-    update(reportId: string, updateReportDto: UpdateReportDto, adminId: string): Promise<import("mongoose").Document<unknown, {}, Report, {}, import("mongoose").DefaultSchemaOptions> & Report & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
+    update(reportId: string, updateReportDto: UpdateReportDto, adminId: string): Promise<Report>;
     getStatistics(): Promise<{
         total: number;
         pending: number;

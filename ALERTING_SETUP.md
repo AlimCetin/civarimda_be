@@ -1,6 +1,6 @@
 # 🚨 Alerting System Kurulum Kılavuzu
 
-Tosyam Backend, kritik hatalar ve güvenlik olayları için Discord veya Slack webhook entegrasyonu ile otomatik bildirim sistemi sunar.
+Civarimda Backend, kritik hatalar ve güvenlik olayları için Discord veya Slack webhook entegrasyonu ile otomatik bildirim sistemi sunar.
 
 ## 🎯 Ne Zaman Bildirim Gönderilir?
 
@@ -25,7 +25,7 @@ Aşağıdaki durumlarda otomatik bildirim gönderilir:
 
 1. Discord sunucunuzda **Sunucu Ayarları** → **Entegrasyonlar** → **Webhook'lar**'a gidin
 2. **Yeni Webhook** butonuna tıklayın
-3. Webhook için bir isim verin (örn: "Tosyam Alerts")
+3. Webhook için bir isim verin (örn: "Civarimda Alerts")
 4. Bildirimlerin gönderileceği kanalı seçin
 5. **Webhook URL'sini Kopyala** butonuna tıklayın
 
@@ -51,7 +51,7 @@ npm run start:dev
 
 1. https://api.slack.com/apps adresine gidin
 2. **Create New App** → **From scratch**
-3. App ismi verin (örn: "Tosyam Alerts") ve workspace seçin
+3. App ismi verin (örn: "Civarimda Alerts") ve workspace seçin
 4. **Incoming Webhooks** → **Activate Incoming Webhooks** (ON)
 5. **Add New Webhook to Workspace**
 6. Bildirimlerin gönderileceği kanalı seçin
@@ -124,7 +124,7 @@ new WebhookTransport({
   webhookUrl: process.env.ALERT_WEBHOOK_URL,
   webhookType: 'discord', // veya 'slack'
   level: 'warn', // Minimum log seviyesi (warn = warn + error)
-  appName: 'Tosyam Backend',
+  appName: 'Civarimda Backend',
 })
 ```
 

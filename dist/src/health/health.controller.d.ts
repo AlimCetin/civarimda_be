@@ -18,21 +18,21 @@ export declare class HealthController {
             database: {
                 status: string;
                 state: string;
-                host: string;
-                name: string;
-                message?: undefined;
+                message: string;
+                type?: undefined;
+                database?: undefined;
             } | {
                 status: string;
                 state: string;
-                message: string;
-                host?: undefined;
-                name?: undefined;
+                type: string;
+                database: any;
+                message?: undefined;
             } | {
                 status: string;
                 message: any;
                 state?: undefined;
-                host?: undefined;
-                name?: undefined;
+                type?: undefined;
+                database?: undefined;
             };
             redis: {
                 status: string;
@@ -86,28 +86,22 @@ export declare class HealthController {
         };
         database: {
             error: string;
-            collections?: undefined;
-            dataSize?: undefined;
-            indexSize?: undefined;
-            storageSize?: undefined;
-            indexes?: undefined;
+            type?: undefined;
+            tables?: undefined;
+            databaseSize?: undefined;
             message?: undefined;
         } | {
-            collections: any;
-            dataSize: string;
-            indexSize: string;
-            storageSize: string;
-            indexes: any;
+            type: string;
+            tables: number;
+            databaseSize: any;
             error?: undefined;
             message?: undefined;
         } | {
             error: string;
             message: any;
-            collections?: undefined;
-            dataSize?: undefined;
-            indexSize?: undefined;
-            storageSize?: undefined;
-            indexes?: undefined;
+            type?: undefined;
+            tables?: undefined;
+            databaseSize?: undefined;
         };
     }>;
 }

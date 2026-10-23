@@ -15,18 +15,19 @@ export declare class AdminController {
     }>;
     getUsers(page?: number, limit?: number, search?: string, role?: string, isBanned?: string): Promise<{
         users: {
-            id: any;
-            fullName: any;
-            avatar: any;
-            bio: any;
-            role: any;
-            warningCount: any;
-            bannedUntil: any;
-            isPermanentlyBanned: any;
-            followerCount: any;
-            followingCount: any;
-            isVerified: any;
-            createdAt: any;
+            id: string;
+            _id: string;
+            fullName: string;
+            avatar: string | null;
+            bio: string;
+            role: string;
+            warningCount: number;
+            bannedUntil: Date | null;
+            isPermanentlyBanned: boolean;
+            followerCount: number;
+            followingCount: number;
+            isVerified: boolean;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -37,8 +38,9 @@ export declare class AdminController {
     }>;
     getUserById(id: string): Promise<{
         id: string;
+        _id: string;
         fullName: string;
-        avatar: string;
+        avatar: string | null;
         bio: string;
         role: string;
         warningCount: number;
@@ -49,63 +51,58 @@ export declare class AdminController {
         postCount: number;
         isVerified: boolean;
         activityLogs: {
-            id: any;
-            adminId: any;
-            activityType: any;
-            targetUserId: any;
-            targetPostId: any;
-            description: any;
-            metadata: any;
+            id: string;
+            adminId: string;
+            activityType: ActivityType;
+            targetUserId: string | null;
+            targetPostId: string | null;
+            description: string;
+            metadata: Record<string, any>;
             admin: {
-                id: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                fullName: string;
+                avatar: string | null;
             } | null;
-            createdAt: any;
+            createdAt: Date;
         }[];
-        createdAt: any;
+        createdAt: Date;
     }>;
-    banUser(id: string, banUserDto: BanUserDto, admin: User): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    unbanUser(id: string, admin: User): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
+    banUser(id: string, banUserDto: BanUserDto, admin: User): Promise<User>;
+    unbanUser(id: string, admin: User): Promise<User>;
     warnUser(id: string, body: {
         reason?: string;
-    }, admin: User): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    changeUserRole(id: string, changeRoleDto: ChangeRoleDto, admin: User): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
+    }, admin: User): Promise<User>;
+    changeUserRole(id: string, changeRoleDto: ChangeRoleDto, admin: User): Promise<User>;
     deletePost(id: string, body: {
         reason?: string;
     }, admin: User): Promise<{
         success: boolean;
     }>;
     getActivityLogs(page?: number, limit?: number, adminId?: string, activityType?: ActivityType): Promise<{
-        logs: (import("../entities/activity-log.entity").ActivityLog & Required<{
-            _id: import("mongoose").Types.ObjectId;
-        }> & {
-            __v: number;
-        })[];
+        logs: {
+            id: string;
+            _id: string;
+            adminId: string;
+            activityType: ActivityType;
+            targetUserId: string | null;
+            targetPostId: string | null;
+            description: string;
+            metadata: Record<string, any>;
+            admin: {
+                id: string;
+                _id: string;
+                fullName: string;
+                avatar: string | null;
+                role: string;
+            } | null;
+            targetUser: {
+                id: string;
+                _id: string;
+                fullName: string;
+                avatar: string | null;
+            } | null;
+            createdAt: Date;
+        }[];
         pagination: {
             page: number;
             limit: number;

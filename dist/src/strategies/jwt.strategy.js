@@ -17,24 +17,26 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const passport_jwt_1 = require("passport-jwt");
 const config_1 = require("@nestjs/config");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../entities/user.entity");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
-    userModel;
+    userRepository;
     configService;
-    constructor(userModel, configService) {
+    constructor(userRepository, configService) {
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             secretOrKey: configService.get('JWT_SECRET') || (() => {
                 throw new Error('JWT_SECRET environment variable is required');
             })(),
         });
-        this.userModel = userModel;
+        this.userRepository = userRepository;
         this.configService = configService;
     }
     async validate(payload) {
-        const user = await this.userModel.findById(payload.id);
+        const user = await this.userRepository.findOne({
+            where: { id: payload.id, deletedAt: null },
+        });
         if (!user)
             throw new common_1.UnauthorizedException();
         return user;
@@ -43,8 +45,8 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
 exports.JwtStrategy = JwtStrategy;
 exports.JwtStrategy = JwtStrategy = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model,
+    __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
         config_1.ConfigService])
 ], JwtStrategy);
 //# sourceMappingURL=jwt.strategy.js.map

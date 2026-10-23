@@ -13,7 +13,7 @@ class WebhookTransport extends winston_transport_1.default {
         super(opts);
         this.webhookUrl = opts.webhookUrl || '';
         this.webhookType = opts.webhookType || 'discord';
-        this.appName = opts.appName || 'Tosyam Backend';
+        this.appName = opts.appName || 'Civarımda Backend';
         if (!this.webhookUrl) {
             this.silent = true;
         }

@@ -9,16 +9,20 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AppealSchema = exports.Appeal = exports.AppealStatus = void 0;
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+exports.Appeal = exports.AppealStatus = void 0;
+const typeorm_1 = require("typeorm");
+const crypto_1 = require("crypto");
 var AppealStatus;
 (function (AppealStatus) {
     AppealStatus["PENDING"] = "pending";
     AppealStatus["APPROVED"] = "approved";
     AppealStatus["REJECTED"] = "rejected";
 })(AppealStatus || (exports.AppealStatus = AppealStatus = {}));
-let Appeal = class Appeal extends mongoose_2.Document {
+let Appeal = class Appeal {
+    id;
+    get _id() {
+        return this.id;
+    }
     userId;
     banLogId;
     reason;
@@ -27,49 +31,87 @@ let Appeal = class Appeal extends mongoose_2.Document {
     reviewedAt;
     adminResponse;
     conversation;
+    createdAt;
+    updatedAt;
+    generateId() {
+        if (!this.id) {
+            this.id = (0, crypto_1.randomUUID)();
+        }
+    }
+    populateVirtuals() {
+        this._id = this.id;
+        if (!this.conversation)
+            this.conversation = [];
+    }
+    toObject() {
+        return {
+            ...this,
+            _id: this.id,
+            conversation: this.conversation || [],
+        };
+    }
 };
 exports.Appeal = Appeal;
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, type: String, ref: 'User' }),
+    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    __metadata("design:type", String)
+], Appeal.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], Appeal.prototype, "userId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, type: String, ref: 'ActivityLog' }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], Appeal.prototype, "banLogId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, typeorm_1.Column)({ type: 'text' }),
     __metadata("design:type", String)
 ], Appeal.prototype, "reason", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ enum: AppealStatus, default: AppealStatus.PENDING }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: AppealStatus.PENDING }),
     __metadata("design:type", String)
 ], Appeal.prototype, "status", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: String, ref: 'User', default: null }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64, nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Appeal.prototype, "reviewedBy", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: null }),
-    __metadata("design:type", Date)
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone', nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Appeal.prototype, "reviewedAt", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: '' }),
+    (0, typeorm_1.Column)({ type: 'text', default: '' }),
     __metadata("design:type", String)
 ], Appeal.prototype, "adminResponse", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{
-                senderId: { type: String, ref: 'User' },
-                message: String,
-                createdAt: Date
-            }], default: [] }),
+    (0, typeorm_1.Column)({ type: 'jsonb', default: '[]' }),
     __metadata("design:type", Array)
 ], Appeal.prototype, "conversation", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Appeal.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Appeal.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_1.BeforeInsert)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Appeal.prototype, "generateId", null);
+__decorate([
+    (0, typeorm_1.AfterLoad)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Appeal.prototype, "populateVirtuals", null);
 exports.Appeal = Appeal = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, typeorm_1.Entity)('appeals'),
+    (0, typeorm_1.Index)(['userId', 'status', 'createdAt']),
+    (0, typeorm_1.Index)(['reviewedBy']),
+    (0, typeorm_1.Index)(['status', 'createdAt'])
 ], Appeal);
-exports.AppealSchema = mongoose_1.SchemaFactory.createForClass(Appeal);
-exports.AppealSchema.index({ userId: 1, status: 1, createdAt: -1 });
-exports.AppealSchema.index({ reviewedBy: 1 });
-exports.AppealSchema.index({ status: 1, createdAt: -1 });
 //# sourceMappingURL=appeal.entity.js.map

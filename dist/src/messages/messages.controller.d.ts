@@ -4,15 +4,22 @@ export declare class MessagesController {
     private messagesService;
     constructor(messagesService: MessagesService);
     getConversations(user: User, page: number, limit: number): Promise<{
-        conversations: ({
-            id: any;
-            participants: any;
+        conversations: {
+            id: string;
+            _id: string;
+            participants: {
+                id: string;
+                _id: string;
+                fullName: string;
+                username: string;
+                avatar: string | null;
+            }[];
             lastMessage: any;
-            lastMessageAt: any;
-            updatedAt: any;
-            createdAt: any;
+            lastMessageAt: Date;
+            updatedAt: Date;
+            createdAt: Date;
             unreadCount: number;
-        } | null)[];
+        }[];
         pagination: {
             page: number;
             limit: number;
@@ -21,18 +28,20 @@ export declare class MessagesController {
     }>;
     getMessages(conversationId: string, user: User, page: number, limit: number): Promise<{
         messages: {
-            id: any;
-            conversationId: any;
-            senderId: any;
+            id: string;
+            _id: string;
+            conversationId: string;
+            senderId: string;
             receiverId: string;
-            text: any;
-            read: any;
-            createdAt: any;
+            text: string;
+            read: boolean;
+            createdAt: Date;
             sender: {
-                id: any;
-                fullName: any;
-                username: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                fullName: string;
+                username: string;
+                avatar: string | null;
             };
         }[];
         pagination: {
@@ -45,18 +54,20 @@ export declare class MessagesController {
         receiverId: string;
         text: string;
     }, user: User): Promise<{
-        id: any;
+        id: string;
+        _id: string;
         conversationId: string;
-        senderId: any;
+        senderId: string;
         receiverId: string;
-        text: any;
-        read: any;
+        text: string;
+        read: boolean;
         createdAt: Date;
         sender: {
-            id: any;
-            fullName: any;
-            username: any;
-            avatar: any;
+            id: string;
+            _id: string;
+            fullName: string;
+            username: string;
+            avatar: string | null;
         };
     }>;
     markAsRead(conversationId: string, user: User): Promise<{

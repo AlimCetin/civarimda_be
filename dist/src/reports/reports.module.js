@@ -8,7 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReportsModule = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
 const reports_controller_1 = require("./reports.controller");
 const reports_service_1 = require("./reports.service");
 const report_entity_1 = require("../entities/report.entity");
@@ -23,12 +23,12 @@ exports.ReportsModule = ReportsModule;
 exports.ReportsModule = ReportsModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            mongoose_1.MongooseModule.forFeature([
-                { name: report_entity_1.Report.name, schema: report_entity_1.ReportSchema },
-                { name: post_entity_1.Post.name, schema: post_entity_1.PostSchema },
-                { name: user_entity_1.User.name, schema: user_entity_1.UserSchema },
-                { name: comment_entity_1.Comment.name, schema: comment_entity_1.CommentSchema },
-                { name: message_entity_1.Message.name, schema: message_entity_1.MessageSchema },
+            typeorm_1.TypeOrmModule.forFeature([
+                report_entity_1.Report,
+                post_entity_1.Post,
+                user_entity_1.User,
+                comment_entity_1.Comment,
+                message_entity_1.Message,
             ]),
         ],
         controllers: [reports_controller_1.ReportsController],

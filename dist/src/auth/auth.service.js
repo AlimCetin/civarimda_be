@@ -14,24 +14,24 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
-const mongoose_2 = require("mongoose");
 const user_entity_1 = require("../entities/user.entity");
 const user_credentials_entity_1 = require("../entities/user-credentials.entity");
 const logger_service_1 = require("../common/logger/logger.service");
 const redis_service_1 = require("../common/redis/redis.service");
 let AuthService = class AuthService {
-    userModel;
-    credentialsModel;
+    userRepository;
+    credentialsRepository;
     jwtService;
     configService;
     logger;
     redisService;
-    constructor(userModel, credentialsModel, jwtService, configService, logger, redisService) {
-        this.userModel = userModel;
-        this.credentialsModel = credentialsModel;
+    constructor(userRepository, credentialsRepository, jwtService, configService, logger, redisService) {
+        this.userRepository = userRepository;
+        this.credentialsRepository = credentialsRepository;
         this.jwtService = jwtService;
         this.configService = configService;
         this.logger = logger;
@@ -39,27 +39,32 @@ let AuthService = class AuthService {
     }
     async register(dto) {
         const emailLower = dto.email.toLowerCase().trim();
-        const exists = await this.credentialsModel.findOne({ email: emailLower });
+        const exists = await this.credentialsRepository.findOne({ where: { email: emailLower } });
         if (exists)
             throw new common_1.ConflictException('User already exists');
-        const user = await this.userModel.create({
+        const user = this.userRepository.create({
             fullName: dto.fullName,
         });
-        await this.credentialsModel.create({
-            userId: user._id,
+        await this.userRepository.save(user);
+        const credentials = this.credentialsRepository.create({
+            userId: user.id,
             email: emailLower,
             password: dto.password,
         });
-        const tokens = await this.generateTokens(user._id.toString());
-        await this.redisService.set(`refresh_token:${user._id.toString()}`, tokens.refreshToken, 604800);
-        await this.credentialsModel.findOneAndUpdate({ userId: user._id }, { refreshToken: tokens.refreshToken });
+        await this.credentialsRepository.save(credentials);
+        const tokens = await this.generateTokens(user.id);
+        await this.redisService.set(`refresh_token:${user.id}`, tokens.refreshToken, 604800);
+        await this.credentialsRepository.update({ userId: user.id }, { refreshToken: tokens.refreshToken });
         return { ...tokens, user: this.sanitizeUser(user) };
     }
     async login(dto) {
         const emailLower = dto.email.toLowerCase().trim();
-        const credentials = await this.credentialsModel
-            .findOne({ email: emailLower })
-            .select('+password +refreshToken');
+        const credentials = await this.credentialsRepository
+            .createQueryBuilder('c')
+            .addSelect('c.password')
+            .addSelect('c.refreshToken')
+            .where('c.email = :email', { email: emailLower })
+            .getOne();
         if (!credentials || !(await credentials.comparePassword(dto.password))) {
             this.logger.securityEvent('Failed login attempt', {
                 email: emailLower,
@@ -68,7 +73,7 @@ let AuthService = class AuthService {
             });
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
-        const user = await this.userModel.findById(credentials.userId);
+        const user = await this.userRepository.findOne({ where: { id: credentials.userId } });
         if (!user) {
             this.logger.securityEvent('Failed login attempt', {
                 email: emailLower,
@@ -78,9 +83,9 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
         this.logger.log(`User logged in successfully: ${emailLower}`, 'AuthService');
-        const tokens = await this.generateTokens(user._id.toString());
-        await this.redisService.set(`refresh_token:${user._id.toString()}`, tokens.refreshToken, 604800);
-        await this.credentialsModel.findOneAndUpdate({ email: emailLower }, { refreshToken: tokens.refreshToken });
+        const tokens = await this.generateTokens(user.id);
+        await this.redisService.set(`refresh_token:${user.id}`, tokens.refreshToken, 604800);
+        await this.credentialsRepository.update({ email: emailLower }, { refreshToken: tokens.refreshToken });
         return { ...tokens, user: this.sanitizeUser(user) };
     }
     async refreshToken(dto) {
@@ -122,7 +127,7 @@ let AuthService = class AuthService {
             }
             const tokens = await this.generateTokens(payload.id);
             await this.redisService.set(`refresh_token:${payload.id}`, tokens.refreshToken, 604800);
-            await this.credentialsModel.findOneAndUpdate({ userId: payload.id }, { refreshToken: tokens.refreshToken });
+            await this.credentialsRepository.update({ userId: payload.id }, { refreshToken: tokens.refreshToken });
             return tokens;
         }
         catch (error) {
@@ -150,14 +155,16 @@ let AuthService = class AuthService {
         return { accessToken, refreshToken };
     }
     sanitizeUser(user) {
-        const obj = user.toObject();
+        const obj = user.toObject ? user.toObject() : { ...user };
         delete obj.password;
         return obj;
     }
     async changePassword(userId, currentPassword, newPassword) {
-        const credentials = await this.credentialsModel
-            .findOne({ userId })
-            .select('+password');
+        const credentials = await this.credentialsRepository
+            .createQueryBuilder('c')
+            .addSelect('c.password')
+            .where('c.userId = :userId', { userId })
+            .getOne();
         if (!credentials) {
             throw new common_1.UnauthorizedException('User credentials not found');
         }
@@ -173,7 +180,7 @@ let AuthService = class AuthService {
             throw new common_1.BadRequestException('New password must be different from current password');
         }
         credentials.password = newPassword;
-        await credentials.save();
+        await this.credentialsRepository.save(credentials);
         this.logger.securityEvent('Password changed successfully', {
             userId: userId.toString(),
             timestamp: new Date().toISOString(),
@@ -182,7 +189,7 @@ let AuthService = class AuthService {
     }
     async logout(userId) {
         await this.redisService.del(`refresh_token:${userId}`);
-        await this.credentialsModel.findOneAndUpdate({ userId }, { $unset: { refreshToken: 1 } });
+        await this.credentialsRepository.update({ userId }, { refreshToken: null });
         this.logger.log(`User logged out: ${userId}`, 'AuthService');
         return { message: 'Logged out successfully' };
     }
@@ -190,11 +197,11 @@ let AuthService = class AuthService {
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
-    __param(1, (0, mongoose_1.InjectModel)(user_credentials_entity_1.UserCredentials.name)),
+    __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(1, (0, typeorm_1.InjectRepository)(user_credentials_entity_1.UserCredentials)),
     __param(4, (0, common_1.Inject)(logger_service_1.AppLoggerService)),
-    __metadata("design:paramtypes", [mongoose_2.Model,
-        mongoose_2.Model,
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         jwt_1.JwtService,
         config_1.ConfigService,
         logger_service_1.AppLoggerService,

@@ -1,71 +1,112 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
-@Schema({ timestamps: true })
-export class User extends Document {
-  @Prop({ required: true, trim: true })
+@Entity('users')
+@Index(['fullName'])
+@Index(['role'])
+@Index(['isPermanentlyBanned', 'bannedUntil'])
+export class User {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
+
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'varchar', length: 255 })
   fullName: string;
 
-  @Prop({ default: null })
-  avatar: string;
+  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
+  avatar: string | null;
 
-  @Prop({ default: '' })
+  @Column({ type: 'text', default: '' })
   bio: string;
 
-  @Prop({ type: [{ type: String, ref: 'User' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   followers: string[];
 
-  @Prop({ type: [{ type: String, ref: 'User' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   following: string[];
 
-  @Prop({ type: [{ type: String, ref: 'User' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   blockedUsers: string[];
 
-  @Prop({ type: [{ type: String, ref: 'Post' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   savedPosts: string[];
 
-  @Prop({ default: false })
+  @Column({ type: 'boolean', default: false })
   isVerified: boolean;
 
-  @Prop({ default: false })
+  @Column({ type: 'boolean', default: false })
   hideFollowers: boolean;
 
-  @Prop({ default: false })
+  @Column({ type: 'boolean', default: false })
   hideFollowing: boolean;
 
-  @Prop({ type: [{ type: String, ref: 'User' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   hiddenFollowers: string[];
 
-  @Prop({ type: [{ type: String, ref: 'User' }], default: [] })
+  @Column({ type: 'text', array: true, default: '{}' })
   hiddenFollowing: string[];
 
-  @Prop({ 
-    type: String, 
-    enum: ['user', 'moderator', 'admin', 'super_admin'], 
-    default: 'user' 
-  })
+  @Column({ type: 'varchar', length: 50, default: 'user' })
   role: string;
 
-  @Prop({ default: 0 })
+  @Column({ type: 'int', default: 0 })
   warningCount: number;
 
-  @Prop({ type: Date, default: null })
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
   bannedUntil: Date | null;
 
-  @Prop({ default: false })
+  @Column({ type: 'boolean', default: false })
   isPermanentlyBanned: boolean;
 
-  @Prop({ type: Date, default: null })
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
   deletedAt: Date | null;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+    if (!this.followers) this.followers = [];
+    if (!this.following) this.following = [];
+    if (!this.blockedUsers) this.blockedUsers = [];
+    if (!this.savedPosts) this.savedPosts = [];
+    if (!this.hiddenFollowers) this.hiddenFollowers = [];
+    if (!this.hiddenFollowing) this.hiddenFollowing = [];
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+      followers: this.followers || [],
+      following: this.following || [],
+      blockedUsers: this.blockedUsers || [],
+      savedPosts: this.savedPosts || [],
+      hiddenFollowers: this.hiddenFollowers || [],
+      hiddenFollowing: this.hiddenFollowing || [],
+    };
+  }
 }
-
-export const UserSchema = SchemaFactory.createForClass(User);
-
-// Indexes for performance
-UserSchema.index({ fullName: 1 }); // For search queries
-UserSchema.index({ role: 1 }); // For role queries
-UserSchema.index({ followers: 1 }); // For follower queries
-UserSchema.index({ following: 1 }); // For following queries
-UserSchema.index({ blockedUsers: 1 }); // For blocked users queries
-UserSchema.index({ isPermanentlyBanned: 1, bannedUntil: 1 }); // For ban queries
-

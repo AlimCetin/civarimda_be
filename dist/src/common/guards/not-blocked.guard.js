@@ -14,14 +14,13 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotBlockedGuard = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
-const mongoose_3 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../../entities/user.entity");
 let NotBlockedGuard = class NotBlockedGuard {
-    userModel;
-    constructor(userModel) {
-        this.userModel = userModel;
+    userRepository;
+    constructor(userRepository) {
+        this.userRepository = userRepository;
     }
     async canActivate(context) {
         const request = context.switchToHttp().getRequest();
@@ -33,11 +32,12 @@ let NotBlockedGuard = class NotBlockedGuard {
         if (targetUserId === 'current-user-id' || targetUserId === 'me') {
             return true;
         }
-        if (!mongoose_3.Types.ObjectId.isValid(targetUserId)) {
-            return true;
-        }
-        const targetUser = await this.userModel.findById(targetUserId).select('blockedUsers');
-        if (targetUser?.blockedUsers?.includes(user._id.toString())) {
+        const currentUserId = user.id || user._id;
+        const targetUser = await this.userRepository.findOne({
+            where: { id: targetUserId },
+            select: ['id', 'blockedUsers'],
+        });
+        if (targetUser?.blockedUsers?.includes(currentUserId)) {
             throw new common_1.ForbiddenException('You are blocked by this user');
         }
         if (user.blockedUsers?.includes(targetUserId)) {
@@ -49,7 +49,7 @@ let NotBlockedGuard = class NotBlockedGuard {
 exports.NotBlockedGuard = NotBlockedGuard;
 exports.NotBlockedGuard = NotBlockedGuard = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model])
+    __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __metadata("design:paramtypes", [typeorm_2.Repository])
 ], NotBlockedGuard);
 //# sourceMappingURL=not-blocked.guard.js.map

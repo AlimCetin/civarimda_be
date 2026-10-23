@@ -23,7 +23,7 @@ const user_entity_1 = require("../entities/user.entity");
 const create_post_dto_1 = require("./dto/create-post.dto");
 const add_comment_dto_1 = require("./dto/add-comment.dto");
 const update_visibility_dto_1 = require("./dto/update-visibility.dto");
-const mongoose_1 = require("mongoose");
+const id_util_1 = require("../common/utils/id.util");
 const multer_config_1 = require("../config/multer.config");
 let PostsController = class PostsController {
     postsService;
@@ -52,7 +52,7 @@ let PostsController = class PostsController {
         return this.postsService.create(user._id.toString(), body.image, body.caption || '', body.isPrivate === 'true' || body.isPrivate === true || false, body.hiddenFromFollowers || [], videoUrl);
     }
     async getLikes(postId, user, page, limit) {
-        if (!mongoose_1.Types.ObjectId.isValid(postId)) {
+        if (!id_util_1.Types.ObjectId.isValid(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
         return this.postsService.getLikes(postId, user._id.toString(), page, limit);
@@ -64,7 +64,7 @@ let PostsController = class PostsController {
         if (userId === 'current-user-id' || userId === 'me') {
             return this.postsService.getUserPosts(user._id.toString(), user._id.toString(), page, limit);
         }
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.postsService.getUserPosts(userId, user._id.toString(), page, limit);
@@ -94,31 +94,31 @@ let PostsController = class PostsController {
         return this.postsService.sharePost(postId, user._id.toString(), '');
     }
     async getPost(postId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(postId)) {
+        if (!id_util_1.Types.ObjectId.isValid(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
         return this.postsService.getPostById(postId, user._id.toString());
     }
     async hidePost(postId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(postId)) {
+        if (!id_util_1.Types.ObjectId.isValid(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
         return this.postsService.hidePost(postId, user._id.toString());
     }
     async unhidePost(postId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(postId)) {
+        if (!id_util_1.Types.ObjectId.isValid(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
         return this.postsService.unhidePost(postId, user._id.toString());
     }
     async updateVisibility(postId, body, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(postId)) {
+        if (!id_util_1.Types.ObjectId.isValid(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
         return this.postsService.updateVisibility(postId, user._id.toString(), body);
     }
     async deletePost(postId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(postId)) {
+        if (!id_util_1.Types.ObjectId.isValid(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
         return this.postsService.deletePost(postId, user._id.toString());

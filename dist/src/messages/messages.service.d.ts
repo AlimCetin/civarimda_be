@@ -1,24 +1,33 @@
-import { Model } from 'mongoose';
+import { Repository } from 'typeorm';
 import { Conversation } from '../entities/conversation.entity';
 import { Message } from '../entities/message.entity';
 import { Notification } from '../entities/notification.entity';
+import { User } from '../entities/user.entity';
 import { RedisService } from '../common/redis/redis.service';
 export declare class MessagesService {
-    private conversationModel;
-    private messageModel;
-    private notificationModel;
+    private conversationRepository;
+    private messageRepository;
+    private notificationRepository;
+    private userRepository;
     private readonly redisService;
-    constructor(conversationModel: Model<Conversation>, messageModel: Model<Message>, notificationModel: Model<Notification>, redisService: RedisService);
+    constructor(conversationRepository: Repository<Conversation>, messageRepository: Repository<Message>, notificationRepository: Repository<Notification>, userRepository: Repository<User>, redisService: RedisService);
     getConversations(userId: string, page?: number, limit?: number): Promise<{
-        conversations: ({
-            id: any;
-            participants: any;
+        conversations: {
+            id: string;
+            _id: string;
+            participants: {
+                id: string;
+                _id: string;
+                fullName: string;
+                username: string;
+                avatar: string | null;
+            }[];
             lastMessage: any;
-            lastMessageAt: any;
-            updatedAt: any;
-            createdAt: any;
+            lastMessageAt: Date;
+            updatedAt: Date;
+            createdAt: Date;
             unreadCount: number;
-        } | null)[];
+        }[];
         pagination: {
             page: number;
             limit: number;
@@ -27,18 +36,20 @@ export declare class MessagesService {
     }>;
     getMessages(conversationId: string, userId: string, page?: number, limit?: number): Promise<{
         messages: {
-            id: any;
-            conversationId: any;
-            senderId: any;
+            id: string;
+            _id: string;
+            conversationId: string;
+            senderId: string;
             receiverId: string;
-            text: any;
-            read: any;
-            createdAt: any;
+            text: string;
+            read: boolean;
+            createdAt: Date;
             sender: {
-                id: any;
-                fullName: any;
-                username: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                fullName: string;
+                username: string;
+                avatar: string | null;
             };
         }[];
         pagination: {
@@ -48,18 +59,20 @@ export declare class MessagesService {
         };
     }>;
     sendMessage(senderId: string, receiverId: string, text: string): Promise<{
-        id: any;
+        id: string;
+        _id: string;
         conversationId: string;
-        senderId: any;
+        senderId: string;
         receiverId: string;
-        text: any;
-        read: any;
+        text: string;
+        read: boolean;
         createdAt: Date;
         sender: {
-            id: any;
-            fullName: any;
-            username: any;
-            avatar: any;
+            id: string;
+            _id: string;
+            fullName: string;
+            username: string;
+            avatar: string | null;
         };
     }>;
     markAsRead(conversationId: string, userId: string): Promise<{

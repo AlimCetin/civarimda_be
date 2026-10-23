@@ -1,25 +1,29 @@
-import { Model } from 'mongoose';
+import { Repository } from 'typeorm';
 import { Notification } from '../entities/notification.entity';
+import { User } from '../entities/user.entity';
 import { RedisService } from '../common/redis/redis.service';
 export declare class NotificationsService {
-    private notificationModel;
+    private notificationRepository;
+    private userRepository;
     private readonly redisService;
-    constructor(notificationModel: Model<Notification>, redisService: RedisService);
+    constructor(notificationRepository: Repository<Notification>, userRepository: Repository<User>, redisService: RedisService);
     getUserNotifications(userId: string, page?: number, limit?: number): Promise<{
         notifications: {
-            id: any;
-            type: any;
+            id: string;
+            _id: string;
+            type: string;
             fromUser: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            postId: any;
-            postOwnerName: any;
-            isFollowerNotification: any;
-            read: any;
-            createdAt: any;
+            postId: string | null;
+            postOwnerName: string | null;
+            isFollowerNotification: boolean;
+            read: boolean;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;

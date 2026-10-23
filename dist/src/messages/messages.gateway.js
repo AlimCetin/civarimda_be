@@ -17,19 +17,19 @@ const websockets_1 = require("@nestjs/websockets");
 const socket_io_1 = require("socket.io");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../entities/user.entity");
 const messages_service_1 = require("./messages.service");
 let MessagesGateway = class MessagesGateway {
     jwtService;
-    userModel;
+    userRepository;
     messagesService;
     configService;
     server;
-    constructor(jwtService, userModel, messagesService, configService) {
+    constructor(jwtService, userRepository, messagesService, configService) {
         this.jwtService = jwtService;
-        this.userModel = userModel;
+        this.userRepository = userRepository;
         this.messagesService = messagesService;
         this.configService = configService;
     }
@@ -46,13 +46,13 @@ let MessagesGateway = class MessagesGateway {
                 return;
             }
             const payload = this.jwtService.verify(token, { secret });
-            const user = await this.userModel.findById(payload.id);
+            const user = await this.userRepository.findOne({ where: { id: payload.id } });
             if (!user) {
                 client.disconnect();
                 return;
             }
-            client.data.userId = user._id.toString();
-            client.join(`user_${user._id}`);
+            client.data.userId = user.id;
+            client.join(`user_${user.id}`);
         }
         catch (error) {
             client.disconnect();
@@ -82,9 +82,9 @@ exports.MessagesGateway = MessagesGateway = __decorate([
             credentials: true,
         },
     }),
-    __param(1, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
+    __param(1, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [jwt_1.JwtService,
-        mongoose_2.Model,
+        typeorm_2.Repository,
         messages_service_1.MessagesService,
         config_1.ConfigService])
 ], MessagesGateway);

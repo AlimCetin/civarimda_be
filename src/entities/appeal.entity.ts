@@ -1,5 +1,14 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
 export enum AppealStatus {
   PENDING = 'pending',
@@ -7,45 +16,70 @@ export enum AppealStatus {
   REJECTED = 'rejected',
 }
 
-@Schema({ timestamps: true })
-export class Appeal extends Document {
-  @Prop({ required: true, type: String, ref: 'User' })
-  userId: string; // İtiraz eden kullanıcı
+@Entity('appeals')
+@Index(['userId', 'status', 'createdAt'])
+@Index(['reviewedBy'])
+@Index(['status', 'createdAt'])
+export class Appeal {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
 
-  @Prop({ required: true, type: String, ref: 'ActivityLog' })
-  banLogId: string; // Ban işleminin log ID'si
+  get _id(): string {
+    return this.id;
+  }
 
-  @Prop({ required: true })
-  reason: string; // İtiraz nedeni
+  @Column({ type: 'varchar', length: 64 })
+  userId: string;
 
-  @Prop({ enum: AppealStatus, default: AppealStatus.PENDING })
+  @Column({ type: 'varchar', length: 64 })
+  banLogId: string;
+
+  @Column({ type: 'text' })
+  reason: string;
+
+  @Column({ type: 'varchar', length: 50, default: AppealStatus.PENDING })
   status: AppealStatus;
 
-  @Prop({ type: String, ref: 'User', default: null })
-  reviewedBy: string; // İnceleyen admin
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  reviewedBy: string | null;
 
-  @Prop({ default: null })
-  reviewedAt: Date;
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
+  reviewedAt: Date | null;
 
-  @Prop({ default: '' })
-  adminResponse: string; // Admin'in cevabı
+  @Column({ type: 'text', default: '' })
+  adminResponse: string;
 
-  @Prop({ type: [{ 
-    senderId: { type: String, ref: 'User' },
-    message: String,
-    createdAt: Date
-  }], default: [] })
+  @Column({ type: 'jsonb', default: '[]' })
   conversation: Array<{
     senderId: string;
     message: string;
     createdAt: Date;
-  }>; // Kullanıcı ve admin arasındaki mesajlaşma
+  }>;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+    if (!this.conversation) this.conversation = [];
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+      conversation: this.conversation || [],
+    };
+  }
 }
-
-export const AppealSchema = SchemaFactory.createForClass(Appeal);
-
-// Indexes for performance
-AppealSchema.index({ userId: 1, status: 1, createdAt: -1 });
-AppealSchema.index({ reviewedBy: 1 });
-AppealSchema.index({ status: 1, createdAt: -1 });
-

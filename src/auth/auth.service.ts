@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Inject } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { Model } from 'mongoose';
 import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
 import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/auth.dto';
@@ -12,8 +12,8 @@ import { RedisService } from '../common/redis/redis.service';
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(UserCredentials.name) private credentialsModel: Model<UserCredentials>,
+    @InjectRepository(User) private userRepository: Repository<User>,
+    @InjectRepository(UserCredentials) private credentialsRepository: Repository<UserCredentials>,
     private jwtService: JwtService,
     private configService: ConfigService,
     @Inject(AppLoggerService) private readonly logger: AppLoggerService,
@@ -23,33 +23,35 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const emailLower = dto.email.toLowerCase().trim();
     
-    // Email kontrolünü credentials tablosundan yap
-    const exists = await this.credentialsModel.findOne({ email: emailLower });
+    // Check if user credentials already exist
+    const exists = await this.credentialsRepository.findOne({ where: { email: emailLower } });
     if (exists) throw new ConflictException('User already exists');
 
-    const user = await this.userModel.create({
+    const user = this.userRepository.create({
       fullName: dto.fullName,
     });
+    await this.userRepository.save(user);
 
     // Create credentials separately
-    await this.credentialsModel.create({
-      userId: user._id,
+    const credentials = this.credentialsRepository.create({
+      userId: user.id,
       email: emailLower,
       password: dto.password,
     });
+    await this.credentialsRepository.save(credentials);
 
-    const tokens = await this.generateTokens(user._id.toString());
+    const tokens = await this.generateTokens(user.id);
     
     // Store refresh token in Redis (TTL: 7 days = 604800 seconds)
     await this.redisService.set(
-      `refresh_token:${user._id.toString()}`,
+      `refresh_token:${user.id}`,
       tokens.refreshToken,
       604800
     );
     
-    // Also update MongoDB for backward compatibility (optional, can be removed later)
-    await this.credentialsModel.findOneAndUpdate(
-      { userId: user._id },
+    // Also update database
+    await this.credentialsRepository.update(
+      { userId: user.id },
       { refreshToken: tokens.refreshToken }
     );
 
@@ -59,13 +61,15 @@ export class AuthService {
   async login(dto: LoginDto) {
     const emailLower = dto.email.toLowerCase().trim();
     
-    // Direkt email ile credentials tablosundan sorgulama
-    const credentials = await this.credentialsModel
-      .findOne({ email: emailLower })
-      .select('+password +refreshToken');
+    // Query credentials including hidden fields
+    const credentials = await this.credentialsRepository
+      .createQueryBuilder('c')
+      .addSelect('c.password')
+      .addSelect('c.refreshToken')
+      .where('c.email = :email', { email: emailLower })
+      .getOne();
     
     if (!credentials || !(await credentials.comparePassword(dto.password))) {
-      // Security event logging for failed login
       this.logger.securityEvent('Failed login attempt', {
         email: emailLower,
         reason: credentials ? 'Invalid password' : 'User not found',
@@ -74,7 +78,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const user = await this.userModel.findById(credentials.userId);
+    const user = await this.userRepository.findOne({ where: { id: credentials.userId } });
     if (!user) {
       this.logger.securityEvent('Failed login attempt', {
         email: emailLower,
@@ -84,20 +88,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Successful login logging
     this.logger.log(`User logged in successfully: ${emailLower}`, 'AuthService');
 
-    const tokens = await this.generateTokens(user._id.toString());
+    const tokens = await this.generateTokens(user.id);
     
     // Store refresh token in Redis (TTL: 7 days = 604800 seconds)
     await this.redisService.set(
-      `refresh_token:${user._id.toString()}`,
+      `refresh_token:${user.id}`,
       tokens.refreshToken,
       604800
     );
     
-    // Also update MongoDB for backward compatibility (optional, can be removed later)
-    await this.credentialsModel.findOneAndUpdate(
+    // Also update database
+    await this.credentialsRepository.update(
       { email: emailLower },
       { refreshToken: tokens.refreshToken }
     );
@@ -160,8 +163,8 @@ export class AuthService {
         604800
       );
       
-      // Also update MongoDB for backward compatibility (optional, can be removed later)
-      await this.credentialsModel.findOneAndUpdate(
+      // Also update database
+      await this.credentialsRepository.update(
         { userId: payload.id },
         { refreshToken: tokens.refreshToken }
       );
@@ -185,13 +188,11 @@ export class AuthService {
 
     const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || jwtSecret;
     
-    // Access token - 1 saat (daha uzun süre için)
     const accessToken = this.jwtService.sign(payload, {
       secret: jwtSecret,
       expiresIn: '1h',
     });
 
-    // Refresh token - 7 gün
     const refreshToken = this.jwtService.sign(payload, {
       secret: refreshSecret,
       expiresIn: '7d',
@@ -200,16 +201,18 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private   sanitizeUser(user: User) {
-    const obj = user.toObject();
-    delete obj.password;
+  private sanitizeUser(user: User) {
+    const obj = user.toObject ? user.toObject() : { ...user };
+    delete (obj as any).password;
     return obj;
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
-    const credentials = await this.credentialsModel
-      .findOne({ userId })
-      .select('+password');
+    const credentials = await this.credentialsRepository
+      .createQueryBuilder('c')
+      .addSelect('c.password')
+      .where('c.userId = :userId', { userId })
+      .getOne();
     
     if (!credentials) {
       throw new UnauthorizedException('User credentials not found');
@@ -224,14 +227,12 @@ export class AuthService {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    // Check if new password is same as current
     if (await credentials.comparePassword(newPassword)) {
       throw new BadRequestException('New password must be different from current password');
     }
 
-    // Update password
     credentials.password = newPassword;
-    await credentials.save();
+    await this.credentialsRepository.save(credentials);
 
     this.logger.securityEvent('Password changed successfully', {
       userId: userId.toString(),
@@ -245,10 +246,10 @@ export class AuthService {
     // Delete refresh token from Redis
     await this.redisService.del(`refresh_token:${userId}`);
     
-    // Also clear from MongoDB for backward compatibility (optional)
-    await this.credentialsModel.findOneAndUpdate(
+    // Clear from database
+    await this.credentialsRepository.update(
       { userId },
-      { $unset: { refreshToken: 1 } }
+      { refreshToken: null }
     );
 
     this.logger.log(`User logged out: ${userId}`, 'AuthService');

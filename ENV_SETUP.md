@@ -29,9 +29,9 @@ Bu dokümanda proje için gerekli environment variable'lar ve konfigürasyonlar�
 - **Açıklama:** MongoDB veritabanı bağlantı URI'si
 - **Format:** `mongodb://[username:password@]host[:port][/database]`
 - **Örnekler:**
-  - Local: `mongodb://localhost:27017/tosyam`
-  - Docker: `mongodb://mongodb:27017/tosyam` (docker-compose network içinde)
-  - Atlas: `mongodb+srv://username:password@cluster.mongodb.net/tosyam`
+  - Local: `mongodb://localhost:27017/civarimda`
+  - Docker: `mongodb://mongodb:27017/civarimda` (docker-compose network içinde)
+  - Atlas: `mongodb+srv://username:password@cluster.mongodb.net/civarimda`
 
 ## ⚙️ Opsiyonel Environment Variables
 
@@ -89,7 +89,7 @@ Bu dokümanda proje için gerekli environment variable'lar ve konfigürasyonlar�
 JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters-long-for-development
 
 # MongoDB Connection URI
-MONGODB_URI=mongodb://localhost:27017/tosyam
+MONGODB_URI=mongodb://localhost:27017/civarimda
 
 # ============================================
 # OPTIONAL VARIABLES (OPSİYONEL)
@@ -137,7 +137,7 @@ Docker Compose kullanıyorsanız, servisler otomatik olarak aynı network'te old
 
 ```env
 # MongoDB Docker container için
-MONGODB_URI=mongodb://mongodb:27017/tosyam
+MONGODB_URI=mongodb://mongodb:27017/civarimda
 
 # Redis Docker container için
 REDIS_URL=redis://redis:6379
@@ -145,7 +145,7 @@ REDIS_URL=redis://redis:6379
 
 Host makinesinden erişmek için (örneğin localhost'tan):
 ```env
-MONGODB_URI=mongodb://localhost:27017/tosyam
+MONGODB_URI=mongodb://localhost:27017/civarimda
 REDIS_URL=redis://localhost:6379
 ```
 

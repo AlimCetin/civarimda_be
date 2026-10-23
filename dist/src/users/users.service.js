@@ -14,8 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../entities/user.entity");
 const user_credentials_entity_1 = require("../entities/user-credentials.entity");
 const post_entity_1 = require("../entities/post.entity");
@@ -25,22 +25,22 @@ const message_entity_1 = require("../entities/message.entity");
 const notification_entity_1 = require("../entities/notification.entity");
 const redis_service_1 = require("../common/redis/redis.service");
 let UsersService = class UsersService {
-    userModel;
-    credentialsModel;
-    postModel;
-    commentModel;
-    conversationModel;
-    messageModel;
-    notificationModel;
+    userRepository;
+    credentialsRepository;
+    postRepository;
+    commentRepository;
+    conversationRepository;
+    messageRepository;
+    notificationRepository;
     redisService;
-    constructor(userModel, credentialsModel, postModel, commentModel, conversationModel, messageModel, notificationModel, redisService) {
-        this.userModel = userModel;
-        this.credentialsModel = credentialsModel;
-        this.postModel = postModel;
-        this.commentModel = commentModel;
-        this.conversationModel = conversationModel;
-        this.messageModel = messageModel;
-        this.notificationModel = notificationModel;
+    constructor(userRepository, credentialsRepository, postRepository, commentRepository, conversationRepository, messageRepository, notificationRepository, redisService) {
+        this.userRepository = userRepository;
+        this.credentialsRepository = credentialsRepository;
+        this.postRepository = postRepository;
+        this.commentRepository = commentRepository;
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
+        this.notificationRepository = notificationRepository;
         this.redisService = redisService;
     }
     async findById(userId, currentUserId) {
@@ -48,28 +48,30 @@ let UsersService = class UsersService {
         if (!currentUserId || currentUserId === userId) {
             const cached = await this.redisService.get(cacheKey);
             if (cached) {
-                const cachedUser = JSON.parse(cached);
-                if (!currentUserId || currentUserId === userId) {
-                    return cachedUser;
-                }
+                return JSON.parse(cached);
             }
         }
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        if (currentUserId && user.blockedUsers?.some((id) => id.toString() === currentUserId)) {
+        if (currentUserId && user.blockedUsers?.includes(currentUserId)) {
             throw new common_1.ForbiddenException('You are blocked by this user');
         }
-        const userObj = user.toObject();
+        const userObj = user.toObject ? user.toObject() : { ...user };
         const followerCount = userObj.followers?.length || 0;
         const followingCount = userObj.following?.length || 0;
         let result;
         if (currentUserId && currentUserId !== userId) {
-            const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('following');
-            const isFollowing = currentUser?.following?.some((id) => id.toString() === userId) || false;
+            const currentUser = await this.userRepository.findOne({
+                where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
+            const isFollowing = currentUser?.following?.includes(userId) || false;
             result = {
                 ...userObj,
-                id: userObj._id.toString(),
+                id: userObj.id,
+                _id: userObj.id,
                 isFollowing,
                 followerCount,
                 followingCount,
@@ -78,7 +80,8 @@ let UsersService = class UsersService {
         else {
             result = {
                 ...userObj,
-                id: userObj._id.toString(),
+                id: userObj.id,
+                _id: userObj.id,
                 followerCount,
                 followingCount,
             };
@@ -96,30 +99,25 @@ let UsersService = class UsersService {
         if (cached) {
             return JSON.parse(cached);
         }
-        const sanitizedQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        console.log('🔍 Arama yapılıyor:', sanitizedQuery);
         try {
-            const users = await this.userModel
-                .find({
-                deletedAt: null,
-                $or: [
-                    { username: { $regex: sanitizedQuery, $options: 'i' } },
-                    { fullName: { $regex: sanitizedQuery, $options: 'i' } },
-                ],
-            })
-                .select('_id username fullName avatar bio')
+            const users = await this.userRepository
+                .createQueryBuilder('user')
+                .where('user.deletedAt IS NULL')
+                .andWhere('user.fullName ILIKE :q', { q: `%${query.trim()}%` })
+                .select(['user.id', 'user.fullName', 'user.avatar', 'user.bio'])
                 .limit(20)
-                .lean();
-            console.log('✅ Bulunan kullanıcı sayısı:', users.length);
-            const result = users.map(user => ({
+                .getMany();
+            const result = users.map((user) => ({
                 ...user,
-                id: user._id.toString(),
+                id: user.id,
+                _id: user.id,
+                username: user.fullName,
             }));
             await this.redisService.set(cacheKey, JSON.stringify(result), 300);
             return result;
         }
         catch (error) {
-            console.error('❌ Arama hatası:', error);
+            console.error('Search error:', error);
             return [];
         }
     }
@@ -127,32 +125,47 @@ let UsersService = class UsersService {
         if (userId === currentUserId) {
             throw new common_1.BadRequestException('Cannot follow yourself');
         }
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null });
+        const currentUser = await this.userRepository.findOne({
+            where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!currentUser)
             throw new common_1.NotFoundException('Current user not found');
-        const blockedByTarget = user.blockedUsers?.some((id) => id.toString() === currentUserId);
-        if (blockedByTarget) {
+        if (user.blockedUsers?.includes(currentUserId)) {
             throw new common_1.ForbiddenException('You are blocked by this user');
         }
-        const hasBlockedTarget = currentUser.blockedUsers?.some((id) => id.toString() === userId);
-        if (hasBlockedTarget) {
+        if (currentUser.blockedUsers?.includes(userId)) {
             throw new common_1.ForbiddenException('You have blocked this user');
         }
-        const isAlreadyFollowing = currentUser.following?.some((id) => id.toString() === userId);
-        if (isAlreadyFollowing) {
+        if (currentUser.following?.includes(userId)) {
             throw new common_1.BadRequestException('Already following');
         }
-        await this.userModel.updateOne({ _id: currentUserId }, { $addToSet: { following: userId } });
-        await this.userModel.updateOne({ _id: userId }, { $addToSet: { followers: currentUserId } });
+        currentUser.following = [...(currentUser.following || []), userId];
+        user.followers = [...(user.followers || []), currentUserId];
+        await this.userRepository.save(currentUser);
+        await this.userRepository.save(user);
         await this.invalidateFeedCache(currentUserId);
         return { message: 'Followed successfully' };
     }
     async unfollow(userId, currentUserId) {
-        await this.userModel.updateOne({ _id: currentUserId }, { $pull: { following: userId } });
-        await this.userModel.updateOne({ _id: userId }, { $pull: { followers: currentUserId } });
+        const currentUser = await this.userRepository.findOne({
+            where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (currentUser) {
+            currentUser.following = (currentUser.following || []).filter((id) => id !== userId);
+            await this.userRepository.save(currentUser);
+        }
+        if (user) {
+            user.followers = (user.followers || []).filter((id) => id !== currentUserId);
+            await this.userRepository.save(user);
+        }
         await this.invalidateFeedCache(currentUserId);
         return { message: 'Unfollowed successfully' };
     }
@@ -160,23 +173,41 @@ let UsersService = class UsersService {
         if (userId === currentUserId) {
             throw new common_1.BadRequestException('Cannot block yourself');
         }
-        await this.userModel.updateOne({ _id: currentUserId }, { $addToSet: { blockedUsers: userId } });
+        const currentUser = await this.userRepository.findOne({
+            where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (currentUser) {
+            if (!currentUser.blockedUsers?.includes(userId)) {
+                currentUser.blockedUsers = [...(currentUser.blockedUsers || []), userId];
+                await this.userRepository.save(currentUser);
+            }
+        }
         await this.unfollow(userId, currentUserId);
         await this.unfollow(currentUserId, userId);
         return { message: 'Blocked successfully' };
     }
     async unblock(userId, currentUserId) {
-        await this.userModel.updateOne({ _id: currentUserId }, { $pull: { blockedUsers: userId } });
+        const currentUser = await this.userRepository.findOne({
+            where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (currentUser) {
+            currentUser.blockedUsers = (currentUser.blockedUsers || []).filter((id) => id !== userId);
+            await this.userRepository.save(currentUser);
+        }
         return { message: 'Unblocked successfully' };
     }
     async updateProfile(userId, data) {
-        const updatedUser = await this.userModel.findOneAndUpdate({ _id: userId, deletedAt: null }, data, { new: true });
+        await this.userRepository.update({ id: userId, deletedAt: (0, typeorm_2.IsNull)() }, data);
+        const updatedUser = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!updatedUser)
             throw new common_1.NotFoundException('User not found');
-        const userObj = updatedUser.toObject();
+        const userObj = updatedUser.toObject ? updatedUser.toObject() : { ...updatedUser };
         const result = {
             ...userObj,
-            id: userObj._id.toString(),
+            id: userObj.id,
+            _id: userObj.id,
             followerCount: userObj.followers?.length || 0,
             followingCount: userObj.following?.length || 0,
         };
@@ -184,16 +215,26 @@ let UsersService = class UsersService {
         return result;
     }
     async getBlockedUsers(userId) {
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null }).populate('blockedUsers');
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        return user.blockedUsers;
+        const blockedIds = user.blockedUsers || [];
+        if (blockedIds.length === 0)
+            return [];
+        return this.userRepository.find({
+            where: { id: (0, typeorm_2.In)(blockedIds), deletedAt: (0, typeorm_2.IsNull)() },
+            select: ['id', 'fullName', 'avatar'],
+        });
     }
     async getFollowers(userId, currentUserId) {
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        if (currentUserId && user.blockedUsers?.some((id) => id.toString() === currentUserId)) {
+        if (currentUserId && user.blockedUsers?.includes(currentUserId)) {
             throw new common_1.ForbiddenException('You are blocked by this user');
         }
         const isOwnProfile = currentUserId && currentUserId === userId;
@@ -205,35 +246,36 @@ let UsersService = class UsersService {
             return [];
         let visibleFollowerIds = followerIds;
         if (!isOwnProfile && user.hiddenFollowers && user.hiddenFollowers.length > 0) {
-            const hiddenIds = user.hiddenFollowers.map((id) => id.toString());
-            visibleFollowerIds = followerIds.filter((id) => !hiddenIds.includes(id.toString()));
+            visibleFollowerIds = followerIds.filter((id) => !user.hiddenFollowers.includes(id));
         }
         if (visibleFollowerIds.length === 0)
             return [];
-        const followers = await this.userModel.find({
-            _id: { $in: visibleFollowerIds },
-            deletedAt: null,
-        }).select('fullName avatar _id');
+        const followers = await this.userRepository.find({
+            where: { id: (0, typeorm_2.In)(visibleFollowerIds), deletedAt: (0, typeorm_2.IsNull)() },
+            select: ['id', 'fullName', 'avatar'],
+        });
         let currentUserFollowing = [];
         if (currentUserId) {
-            const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('following');
-            currentUserFollowing = currentUser?.following?.map((id) => id.toString()) || [];
+            const currentUser = await this.userRepository.findOne({
+                where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
+            currentUserFollowing = currentUser?.following || [];
         }
-        return followers.map((follower) => {
-            const followerId = follower._id.toString();
-            return {
-                id: followerId,
-                fullName: follower.fullName,
-                avatar: follower.avatar,
-                isFollowing: currentUserFollowing.includes(followerId),
-            };
-        });
+        return followers.map((follower) => ({
+            id: follower.id,
+            _id: follower.id,
+            fullName: follower.fullName,
+            avatar: follower.avatar,
+            isFollowing: currentUserFollowing.includes(follower.id),
+        }));
     }
     async getFollowing(userId, currentUserId) {
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        if (currentUserId && user.blockedUsers?.some((id) => id.toString() === currentUserId)) {
+        if (currentUserId && user.blockedUsers?.includes(currentUserId)) {
             throw new common_1.ForbiddenException('You are blocked by this user');
         }
         const isOwnProfile = currentUserId && currentUserId === userId;
@@ -245,80 +287,104 @@ let UsersService = class UsersService {
             return [];
         let visibleFollowingIds = followingIds;
         if (!isOwnProfile && user.hiddenFollowing && user.hiddenFollowing.length > 0) {
-            const hiddenIds = user.hiddenFollowing.map((id) => id.toString());
-            visibleFollowingIds = followingIds.filter((id) => !hiddenIds.includes(id.toString()));
+            visibleFollowingIds = followingIds.filter((id) => !user.hiddenFollowing.includes(id));
         }
         if (visibleFollowingIds.length === 0)
             return [];
-        const following = await this.userModel.find({
-            _id: { $in: visibleFollowingIds },
-            deletedAt: null,
-        }).select('fullName avatar _id');
+        const following = await this.userRepository.find({
+            where: { id: (0, typeorm_2.In)(visibleFollowingIds), deletedAt: (0, typeorm_2.IsNull)() },
+            select: ['id', 'fullName', 'avatar'],
+        });
         let currentUserFollowing = [];
         if (currentUserId) {
-            const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('following');
-            currentUserFollowing = currentUser?.following?.map((id) => id.toString()) || [];
+            const currentUser = await this.userRepository.findOne({
+                where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
+            currentUserFollowing = currentUser?.following || [];
         }
-        return following.map((followed) => {
-            const followedId = followed._id.toString();
-            return {
-                id: followedId,
-                fullName: followed.fullName,
-                avatar: followed.avatar,
-                isFollowing: currentUserFollowing.includes(followedId),
-            };
-        });
+        return following.map((followed) => ({
+            id: followed.id,
+            _id: followed.id,
+            fullName: followed.fullName,
+            avatar: followed.avatar,
+            isFollowing: currentUserFollowing.includes(followed.id),
+        }));
     }
     async deleteAccount(userId) {
-        console.log('🗑️ Kullanıcı hesabı siliniyor (soft delete):', userId);
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!user) {
             throw new common_1.NotFoundException('User not found');
         }
         const deletedAt = new Date();
-        const userPosts = await this.postModel.find({ userId, deletedAt: null }).select('_id');
-        const postIds = userPosts.map(p => p._id.toString());
-        if (postIds.length > 0) {
-            await this.commentModel.updateMany({ postId: { $in: postIds }, deletedAt: null }, { $set: { deletedAt } });
-            await this.notificationModel.updateMany({ postId: { $in: postIds }, deletedAt: null }, { $set: { deletedAt } });
-            await this.userModel.updateMany({ savedPosts: { $in: postIds } }, { $pull: { savedPosts: { $in: postIds } } });
-            await this.postModel.updateMany({ userId, deletedAt: null }, { $set: { deletedAt } });
-            console.log(`  ✅ ${postIds.length} post soft delete yapıldı`);
-        }
-        const deletedComments = await this.commentModel.updateMany({ userId, deletedAt: null }, { $set: { deletedAt } });
-        console.log(`  ✅ ${deletedComments.modifiedCount} yorum soft delete yapıldı`);
-        const userConversations = await this.conversationModel.find({
-            participants: userId,
-            deletedAt: null,
+        const userPosts = await this.postRepository.find({
+            where: { userId, deletedAt: (0, typeorm_2.IsNull)() },
+            select: ['id'],
         });
+        const postIds = userPosts.map((p) => p.id);
+        if (postIds.length > 0) {
+            await this.commentRepository
+                .createQueryBuilder()
+                .update(comment_entity_1.Comment)
+                .set({ deletedAt })
+                .where('postId IN (:...postIds)', { postIds })
+                .andWhere('deletedAt IS NULL')
+                .execute();
+            await this.notificationRepository
+                .createQueryBuilder()
+                .update(notification_entity_1.Notification)
+                .set({ deletedAt })
+                .where('postId IN (:...postIds)', { postIds })
+                .andWhere('deletedAt IS NULL')
+                .execute();
+            await this.postRepository
+                .createQueryBuilder()
+                .update(post_entity_1.Post)
+                .set({ deletedAt })
+                .where('userId = :userId', { userId })
+                .andWhere('deletedAt IS NULL')
+                .execute();
+        }
+        await this.commentRepository
+            .createQueryBuilder()
+            .update(comment_entity_1.Comment)
+            .set({ deletedAt })
+            .where('userId = :userId', { userId })
+            .andWhere('deletedAt IS NULL')
+            .execute();
+        const userConversations = await this.conversationRepository
+            .createQueryBuilder('c')
+            .where(':userId = ANY(c.participants)', { userId })
+            .andWhere('c.deletedAt IS NULL')
+            .getMany();
         for (const conv of userConversations) {
-            await this.messageModel.updateMany({ conversationId: conv._id.toString(), deletedAt: null }, { $set: { deletedAt } });
-            const otherParticipants = conv.participants.filter((p) => p.toString() !== userId);
+            await this.messageRepository
+                .createQueryBuilder()
+                .update(message_entity_1.Message)
+                .set({ deletedAt })
+                .where('conversationId = :convId', { convId: conv.id })
+                .andWhere('deletedAt IS NULL')
+                .execute();
+            const otherParticipants = conv.participants.filter((p) => p !== userId);
             if (otherParticipants.length === 0) {
-                await this.conversationModel.updateOne({ _id: conv._id }, { $set: { deletedAt } });
+                conv.deletedAt = deletedAt;
             }
             else {
-                await this.conversationModel.updateOne({ _id: conv._id }, { $pull: { participants: userId } });
+                conv.participants = otherParticipants;
             }
+            await this.conversationRepository.save(conv);
         }
-        console.log(`  ✅ ${userConversations.length} conversation temizlendi`);
-        const deletedNotifications = await this.notificationModel.updateMany({
-            $or: [
-                { userId, deletedAt: null },
-                { fromUserId: userId, deletedAt: null },
-            ],
-        }, { $set: { deletedAt } });
-        console.log(`  ✅ ${deletedNotifications.modifiedCount} bildirim soft delete yapıldı`);
-        await this.userModel.updateMany({ following: userId, deletedAt: null }, { $pull: { following: userId } });
-        await this.userModel.updateMany({ followers: userId, deletedAt: null }, { $pull: { followers: userId } });
-        console.log('  ✅ Follow ilişkileri temizlendi');
-        await this.userModel.updateMany({ blockedUsers: userId, deletedAt: null }, { $pull: { blockedUsers: userId } });
-        console.log('  ✅ Block ilişkileri temizlendi');
-        await this.userModel.updateOne({ _id: userId }, { $set: { savedPosts: [] } });
-        await this.credentialsModel.deleteOne({ userId });
-        console.log('  ✅ Kullanıcı kimlik bilgileri silindi');
-        await this.userModel.updateOne({ _id: userId }, { $set: { deletedAt } });
-        console.log('  ✅ Kullanıcı hesabı soft delete yapıldı');
+        await this.notificationRepository
+            .createQueryBuilder()
+            .update(notification_entity_1.Notification)
+            .set({ deletedAt })
+            .where('(userId = :userId OR fromUserId = :userId)', { userId })
+            .andWhere('deletedAt IS NULL')
+            .execute();
+        await this.credentialsRepository.delete({ userId });
+        user.deletedAt = deletedAt;
+        await this.userRepository.save(user);
         await this.invalidateFeedCache(userId);
         await this.redisService.del(`user:${userId}`);
         return { message: 'Account deleted successfully' };
@@ -338,20 +404,20 @@ let UsersService = class UsersService {
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
-    __param(1, (0, mongoose_1.InjectModel)(user_credentials_entity_1.UserCredentials.name)),
-    __param(2, (0, mongoose_1.InjectModel)(post_entity_1.Post.name)),
-    __param(3, (0, mongoose_1.InjectModel)(comment_entity_1.Comment.name)),
-    __param(4, (0, mongoose_1.InjectModel)(conversation_entity_1.Conversation.name)),
-    __param(5, (0, mongoose_1.InjectModel)(message_entity_1.Message.name)),
-    __param(6, (0, mongoose_1.InjectModel)(notification_entity_1.Notification.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
+    __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(1, (0, typeorm_1.InjectRepository)(user_credentials_entity_1.UserCredentials)),
+    __param(2, (0, typeorm_1.InjectRepository)(post_entity_1.Post)),
+    __param(3, (0, typeorm_1.InjectRepository)(comment_entity_1.Comment)),
+    __param(4, (0, typeorm_1.InjectRepository)(conversation_entity_1.Conversation)),
+    __param(5, (0, typeorm_1.InjectRepository)(message_entity_1.Message)),
+    __param(6, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
         redis_service_1.RedisService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

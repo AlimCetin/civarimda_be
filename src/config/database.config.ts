@@ -1,40 +1,42 @@
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
-export const DatabaseModule = MongooseModule.forRootAsync({
+export const DatabaseModule = TypeOrmModule.forRootAsync({
   inject: [ConfigService],
   useFactory: (configService: ConfigService) => {
-    const uri = configService.get<string>('MONGODB_URI');
-    if (!uri) {
-      throw new Error('MONGODB_URI environment variable is required');
-    }
-    
-    // Connection pooling optimization
     const isProduction = configService.get<string>('NODE_ENV') === 'production';
-    
+    const databaseUrl = configService.get<string>('DATABASE_URL');
+
+    if (databaseUrl) {
+      return {
+        type: 'postgres',
+        url: databaseUrl,
+        autoLoadEntities: true,
+        synchronize: configService.get<boolean>('TYPEORM_SYNC', true), // auto create tables in development / when requested
+        ssl: isProduction && configService.get<string>('POSTGRES_SSL') === 'true' ? { rejectUnauthorized: false } : false,
+        extra: {
+          max: configService.get<number>('POSTGRES_MAX_POOL_SIZE', isProduction ? 30 : 10),
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000,
+        },
+      };
+    }
+
     return {
-      uri,
-      // Connection pool settings
-      maxPoolSize: configService.get<number>('MONGODB_MAX_POOL_SIZE', isProduction ? 50 : 10),
-      minPoolSize: configService.get<number>('MONGODB_MIN_POOL_SIZE', isProduction ? 10 : 2),
-      
-      // Connection timeout settings
-      serverSelectionTimeoutMS: 5000, // 5 seconds
-      socketTimeoutMS: 45000, // 45 seconds
-      connectTimeoutMS: 10000, // 10 seconds
-      
-      // Keep-alive settings for long-running connections
-      heartbeatFrequencyMS: 10000, // 10 seconds
-      
-      // Automatically close connections that have been idle
-      maxIdleTimeMS: 60000, // 1 minute
-      
-      // Retry settings
-      retryWrites: true,
-      retryReads: true,
-      
-      // Connection monitoring
-      monitorCommands: !isProduction, // Only in development
+      type: 'postgres',
+      host: configService.get<string>('POSTGRES_HOST', 'localhost'),
+      port: configService.get<number>('POSTGRES_PORT', 5432),
+      username: configService.get<string>('POSTGRES_USERNAME', 'postgres'),
+      password: configService.get<string>('POSTGRES_PASSWORD', 'postgres'),
+      database: configService.get<string>('POSTGRES_DATABASE', 'civarimda'),
+      autoLoadEntities: true,
+      synchronize: configService.get<boolean>('TYPEORM_SYNC', true),
+      ssl: isProduction && configService.get<string>('POSTGRES_SSL') === 'true' ? { rejectUnauthorized: false } : false,
+      extra: {
+        max: configService.get<number>('POSTGRES_MAX_POOL_SIZE', isProduction ? 30 : 10),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      },
     };
   },
 });

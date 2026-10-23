@@ -1,38 +1,33 @@
-import { Model, Types } from 'mongoose';
+import { Repository } from 'typeorm';
 import { Ad, AdStatus } from '../entities/ad.entity';
 import { ActivityLog } from '../entities/activity-log.entity';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
 export declare class AdsService {
-    private adModel;
-    private activityLogModel;
-    constructor(adModel: Model<Ad>, activityLogModel: Model<ActivityLog>);
-    create(createAdDto: CreateAdDto, adminId: string): Promise<import("mongoose").Document<unknown, {}, Ad, {}, import("mongoose").DefaultSchemaOptions> & Ad & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
+    private adRepository;
+    private activityLogRepository;
+    constructor(adRepository: Repository<Ad>, activityLogRepository: Repository<ActivityLog>);
+    create(createAdDto: CreateAdDto, adminId: string): Promise<Ad>;
     findAll(status?: AdStatus, page?: number, limit?: number): Promise<{
         ads: {
-            id: any;
-            title: any;
-            type: any;
-            mediaUrl: any;
-            linkUrl: any;
-            description: any;
-            status: any;
-            startDate: any;
-            endDate: any;
-            clickCount: any;
-            viewCount: any;
-            impressionCount: any;
-            createdBy: any;
-            maxImpressions: any;
-            budget: any;
-            spentAmount: any;
-            createdAt: any;
+            id: string;
+            _id: string;
+            title: string;
+            type: import("../entities/ad.entity").AdType;
+            mediaUrl: string;
+            linkUrl: string;
+            description: string;
+            status: AdStatus;
+            startDate: Date;
+            endDate: Date;
+            clickCount: number;
+            viewCount: number;
+            impressionCount: number;
+            createdBy: string | null;
+            maxImpressions: number;
+            budget: number;
+            spentAmount: number;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -42,26 +37,8 @@ export declare class AdsService {
         };
     }>;
     getActiveAds(): Promise<{
-        id: any;
-        title: any;
-        type: any;
-        mediaUrl: any;
-        linkUrl: any;
-        description: any;
-        status: any;
-        startDate: any;
-        endDate: any;
-        clickCount: any;
-        viewCount: any;
-        impressionCount: any;
-        createdBy: any;
-        maxImpressions: any;
-        budget: any;
-        spentAmount: any;
-        createdAt: any;
-    }[]>;
-    findOne(adId: string): Promise<{
         id: string;
+        _id: string;
         title: string;
         type: import("../entities/ad.entity").AdType;
         mediaUrl: string;
@@ -73,19 +50,33 @@ export declare class AdsService {
         clickCount: number;
         viewCount: number;
         impressionCount: number;
-        createdBy: any;
+        createdBy: string | null;
         maxImpressions: number;
         budget: number;
         spentAmount: number;
-        createdAt: any;
-    }>;
-    update(adId: string, updateAdDto: UpdateAdDto, adminId: string): Promise<import("mongoose").Document<unknown, {}, Ad, {}, import("mongoose").DefaultSchemaOptions> & Ad & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
+        createdAt: Date;
+    }[]>;
+    findOne(adId: string): Promise<{
         id: string;
+        _id: string;
+        title: string;
+        type: import("../entities/ad.entity").AdType;
+        mediaUrl: string;
+        linkUrl: string;
+        description: string;
+        status: AdStatus;
+        startDate: Date;
+        endDate: Date;
+        clickCount: number;
+        viewCount: number;
+        impressionCount: number;
+        createdBy: string | null;
+        maxImpressions: number;
+        budget: number;
+        spentAmount: number;
+        createdAt: Date;
     }>;
+    update(adId: string, updateAdDto: UpdateAdDto, adminId: string): Promise<Ad>;
     delete(adId: string, adminId: string): Promise<{
         success: boolean;
     }>;
@@ -117,12 +108,12 @@ export declare class AdsService {
         activeAds: number;
         pausedAds: number;
         expiredAds: number;
-        totalClicks: any;
-        totalViews: any;
-        totalImpressions: any;
+        totalClicks: number;
+        totalViews: number;
+        totalImpressions: number;
         totalCTR: number;
-        totalSpent: any;
-        totalBudget: any;
+        totalSpent: number;
+        totalBudget: number;
         remainingBudget: number;
         adId?: undefined;
         title?: undefined;

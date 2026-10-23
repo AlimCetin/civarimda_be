@@ -1,39 +1,69 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  BeforeUpdate,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
-@Schema({ timestamps: true })
-export class UserCredentials extends Document {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
-  userId: Types.ObjectId;
+@Entity('user_credentials')
+@Index(['userId'], { unique: true })
+@Index(['email'], { unique: true })
+export class UserCredentials {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
 
-  @Prop({ required: true, unique: true, lowercase: true, trim: true })
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'varchar', length: 64, unique: true })
+  userId: string;
+
+  @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Prop({ required: true, select: false })
+  @Column({ type: 'varchar', length: 255, select: false })
   password: string;
 
-  @Prop({ default: null, select: false })
-  refreshToken: string;
+  @Column({ type: 'varchar', length: 500, nullable: true, default: null, select: false })
+  refreshToken: string | null;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  async generateIdAndHashPassword() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+    if (this.password && !this.password.startsWith('$2a$') && !this.password.startsWith('$2b$')) {
+      this.password = await bcrypt.hash(this.password, 12);
+    }
+  }
+
+  @BeforeUpdate()
+  async hashPasswordOnUpdate() {
+    if (this.password && !this.password.startsWith('$2a$') && !this.password.startsWith('$2b$')) {
+      this.password = await bcrypt.hash(this.password, 12);
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+  }
 
   async comparePassword(candidatePassword: string): Promise<boolean> {
     return bcrypt.compare(candidatePassword, this.password);
   }
 }
-
-export const UserCredentialsSchema = SchemaFactory.createForClass(UserCredentials);
-
-// comparePassword metodunu schema'ya instance metodu olarak ekle
-UserCredentialsSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
-  return bcrypt.compare(candidatePassword, this.password);
-};
-
-UserCredentialsSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
-  this.password = await bcrypt.hash(this.password, 12);
-});
-
-// Indexes for performance
-// email is already unique (implicit index)
-// userId is already unique (implicit index from unique: true), no need for explicit index
-

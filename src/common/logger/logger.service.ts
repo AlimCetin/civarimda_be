@@ -50,7 +50,7 @@ export class AppLoggerService implements LoggerService {
           webhookUrl,
           webhookType,
           level: 'warn', // Sadece warn ve error seviyelerini gönder
-          appName: 'Tosyam Backend',
+          appName: 'Civarımda Backend',
         }),
       );
     }
@@ -63,7 +63,7 @@ export class AppLoggerService implements LoggerService {
         winston.format.splat(),
         winston.format.json(),
       ),
-      defaultMeta: { service: 'tosyam-backend' },
+      defaultMeta: { service: 'civarimda-backend' },
       transports,
     });
   }

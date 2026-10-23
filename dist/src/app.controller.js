@@ -18,7 +18,10 @@ let AppController = class AppController {
     LATEST_VERSION = '1.0.0';
     MIN_SUPPORTED_VERSION = '1.0.0';
     health() {
-        return { status: 'OK', message: 'Tosyam API is running' };
+        return { status: 'OK', message: 'Civarımda API is running' };
+    }
+    root() {
+        return { message: 'Welcome to Civarımda API v' + this.LATEST_VERSION };
     }
     versionCheck(currentVersion, platform) {
         const isUpdateRequired = this.isUpdateRequired(currentVersion || '0.0.0');
@@ -33,7 +36,7 @@ let AppController = class AppController {
                 : isUpdateRequired
                     ? `Yeni versiyon ${this.LATEST_VERSION} mevcut. Önerilen özellikler ve hata düzeltmeleri için lütfen güncelleyin.`
                     : 'Uygulamanız güncel.',
-            androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.tosyam',
+            androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.civarimda.app',
             iosStoreUrl: 'https://apps.apple.com/app/idYOUR_APP_ID',
             platform: platform || 'unknown',
         };
@@ -82,6 +85,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "health", null);
+__decorate([
+    (0, common_1.Get)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "root", null);
 __decorate([
     (0, common_1.Get)('app/version-check'),
     __param(0, (0, common_1.Query)('currentVersion')),

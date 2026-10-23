@@ -8,19 +8,21 @@ export declare class NotificationsController {
     }>;
     getNotifications(user: User, page: number, limit: number): Promise<{
         notifications: {
-            id: any;
-            type: any;
+            id: string;
+            _id: string;
+            type: string;
             fromUser: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            postId: any;
-            postOwnerName: any;
-            isFollowerNotification: any;
-            read: any;
-            createdAt: any;
+            postId: string | null;
+            postOwnerName: string | null;
+            isFollowerNotification: boolean;
+            read: boolean;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;

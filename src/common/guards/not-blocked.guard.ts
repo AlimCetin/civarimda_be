@@ -1,12 +1,11 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Types } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
 
 @Injectable()
 export class NotBlockedGuard implements CanActivate {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectRepository(User) private userRepository: Repository<User>) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -22,14 +21,15 @@ export class NotBlockedGuard implements CanActivate {
       return true;
     }
 
-    // Validate ObjectId format
-    if (!Types.ObjectId.isValid(targetUserId)) {
-      return true; // Invalid ObjectId, let the controller handle the error
-    }
+    const currentUserId = user.id || user._id;
 
     // Check if target user has blocked current user
-    const targetUser = await this.userModel.findById(targetUserId).select('blockedUsers');
-    if (targetUser?.blockedUsers?.includes(user._id.toString())) {
+    const targetUser = await this.userRepository.findOne({
+      where: { id: targetUserId },
+      select: ['id', 'blockedUsers'],
+    });
+
+    if (targetUser?.blockedUsers?.includes(currentUserId)) {
       throw new ForbiddenException('You are blocked by this user');
     }
 

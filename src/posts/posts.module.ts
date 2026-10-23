@@ -1,22 +1,22 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
-import { Post, PostSchema } from '../entities/post.entity';
-import { Comment, CommentSchema } from '../entities/comment.entity';
-import { Notification, NotificationSchema } from '../entities/notification.entity';
-import { User, UserSchema } from '../entities/user.entity';
-import { Ad, AdSchema } from '../entities/ad.entity';
+import { Post } from '../entities/post.entity';
+import { Comment } from '../entities/comment.entity';
+import { Notification } from '../entities/notification.entity';
+import { User } from '../entities/user.entity';
+import { Ad } from '../entities/ad.entity';
 import { NotBlockedGuard } from '../common/guards/not-blocked.guard';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Post.name, schema: PostSchema },
-      { name: Comment.name, schema: CommentSchema },
-      { name: Notification.name, schema: NotificationSchema },
-      { name: User.name, schema: UserSchema },
-      { name: Ad.name, schema: AdSchema },
+    TypeOrmModule.forFeature([
+      Post,
+      Comment,
+      Notification,
+      User,
+      Ad,
     ]),
   ],
   controllers: [PostsController],

@@ -3,26 +3,35 @@ import { User } from '../entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { AddCommentDto } from './dto/add-comment.dto';
 import { UpdateVisibilityDto } from './dto/update-visibility.dto';
-import { Types } from 'mongoose';
 export declare class PostsController {
     private postsService;
     constructor(postsService: PostsService);
     uploadMedia(file: Express.Multer.File): Promise<{
         url: string;
     }>;
-    create(file: Express.Multer.File, body: CreatePostDto, user: User): Promise<import("mongoose").Document<unknown, {}, import("../entities/post.entity").Post, {}, import("mongoose").DefaultSchemaOptions> & import("../entities/post.entity").Post & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
+    create(file: Express.Multer.File, body: CreatePostDto, user: User): Promise<{
         id: string;
+        _id: string;
+        userId: string;
+        image: string | null;
+        video?: string | null;
+        caption: string;
+        likes: string[];
+        commentCount: number;
+        isHidden: boolean;
+        isPrivate: boolean;
+        hiddenFromFollowers: string[];
+        deletedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     getLikes(postId: string, user: User, page: number, limit: number): Promise<{
         users: ({
             id: string;
-            username: any;
-            fullName: any;
-            avatar: any;
+            _id: string;
+            username: string;
+            fullName: string;
+            avatar: string | null;
         } | null)[];
         pagination: {
             page: number;
@@ -33,22 +42,24 @@ export declare class PostsController {
     getFeed(user: User, page: number, limit: number): Promise<any>;
     getUserPosts(userId: string, user: User, page: number, limit: number): Promise<{
         posts: {
-            id: any;
-            userId: any;
+            id: string;
+            _id: string;
+            userId: string;
             user: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            image: any;
-            video: any;
-            caption: any;
-            likeCount: any;
-            commentCount: any;
-            isLiked: any;
+            image: string | null;
+            video: string | undefined;
+            caption: string;
+            likeCount: number;
+            commentCount: number;
+            isLiked: boolean;
             isSaved: boolean;
-            createdAt: any;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -64,16 +75,18 @@ export declare class PostsController {
     }>;
     getComments(postId: string, page: number, limit: number): Promise<{
         comments: {
-            id: any;
-            userId: any;
+            id: string;
+            _id: string;
+            userId: string;
             user: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            text: any;
-            createdAt: any;
+            text: string;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -83,15 +96,17 @@ export declare class PostsController {
     }>;
     addComment(postId: string, body: AddCommentDto, user: User): Promise<{
         id: string;
-        userId: any;
+        _id: string;
+        userId: string;
         user: {
-            id: any;
-            username: any;
-            fullName: any;
-            avatar: any;
+            id: string;
+            _id: string;
+            username: string;
+            fullName: string;
+            avatar: string | null;
         };
         text: string;
-        createdAt: any;
+        createdAt: Date;
     }>;
     savePost(postId: string, user: User): Promise<{
         message: string;
@@ -101,25 +116,27 @@ export declare class PostsController {
     }>;
     getSavedPosts(user: User, page: number, limit: number): Promise<{
         posts: {
-            id: any;
-            userId: any;
+            id: string;
+            _id: string;
+            userId: string;
             user: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            image: any;
-            video: any;
-            caption: any;
-            likeCount: any;
-            commentCount: any;
-            isLiked: any;
+            image: string | null;
+            video: string | undefined;
+            caption: string;
+            likeCount: number;
+            commentCount: number;
+            isLiked: boolean;
             isSaved: boolean;
-            isHidden: any;
-            isPrivate: any;
-            hiddenFromFollowers: any;
-            createdAt: any;
+            isHidden: boolean;
+            isPrivate: boolean;
+            hiddenFromFollowers: string[];
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -131,20 +148,22 @@ export declare class PostsController {
     }>;
     getPostForShare(postId: string, user: User): Promise<{
         postId: string;
-        image: string;
+        image: string | null;
         caption: string;
     }>;
     getPost(postId: string, user: User): Promise<{
         id: string;
-        userId: any;
+        _id: string;
+        userId: string;
         user: {
-            id: any;
-            username: any;
-            fullName: any;
-            avatar: any;
+            id: string;
+            _id: string;
+            username: string;
+            fullName: string;
+            avatar: string | null;
         };
-        image: string;
-        video: any;
+        image: string | null;
+        video: string | undefined;
         caption: string;
         likeCount: number;
         commentCount: number;
@@ -152,8 +171,8 @@ export declare class PostsController {
         isSaved: boolean;
         isHidden: boolean;
         isPrivate: boolean;
-        hiddenFromFollowers: any[];
-        createdAt: any;
+        hiddenFromFollowers: string[];
+        createdAt: Date;
     }>;
     hidePost(postId: string, user: User): Promise<{
         message: string;
@@ -163,7 +182,11 @@ export declare class PostsController {
     }>;
     updateVisibility(postId: string, body: UpdateVisibilityDto, user: User): Promise<{
         message: string;
-        update: any;
+        update: {
+            isPrivate?: boolean;
+            isHidden?: boolean;
+            hiddenFromFollowers?: string[];
+        };
     }>;
     deletePost(postId: string, user: User): Promise<{
         message: string;

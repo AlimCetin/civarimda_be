@@ -14,58 +14,53 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationsService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const notification_entity_1 = require("../entities/notification.entity");
+const user_entity_1 = require("../entities/user.entity");
 const redis_service_1 = require("../common/redis/redis.service");
 let NotificationsService = class NotificationsService {
-    notificationModel;
+    notificationRepository;
+    userRepository;
     redisService;
-    constructor(notificationModel, redisService) {
-        this.notificationModel = notificationModel;
+    constructor(notificationRepository, userRepository, redisService) {
+        this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
         this.redisService = redisService;
     }
     async getUserNotifications(userId, page = 1, limit = 20) {
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
-        const notifications = await this.notificationModel.find({
-            userId,
-            deletedAt: null,
-        })
-            .populate('fromUserId', 'fullName avatar')
-            .select('fromUserId postId type read createdAt postOwnerName isFollowerNotification')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(maxLimit)
-            .lean();
+        const notifications = await this.notificationRepository.find({
+            where: { userId, deletedAt: (0, typeorm_2.IsNull)() },
+            order: { createdAt: 'DESC' },
+            skip,
+            take: maxLimit,
+        });
+        const fromUserIds = Array.from(new Set(notifications.map((n) => n.fromUserId).filter(Boolean)));
+        let fromUserMap = new Map();
+        if (fromUserIds.length > 0) {
+            const users = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(fromUserIds) },
+                select: ['id', 'fullName', 'avatar'],
+            });
+            fromUserMap = new Map(users.map((u) => [u.id, u]));
+        }
         return {
             notifications: notifications.map((notification) => {
-                const fromUserIdObj = notification.fromUserId;
-                let fromUserData;
-                if (typeof fromUserIdObj === 'object' && fromUserIdObj?._id) {
-                    fromUserData = {
-                        _id: fromUserIdObj._id,
-                        fullName: fromUserIdObj.fullName || '',
-                        avatar: fromUserIdObj.avatar || null,
-                    };
-                }
-                else {
-                    fromUserData = {
-                        _id: fromUserIdObj || notification.fromUserId,
-                        fullName: '',
-                        avatar: null,
-                    };
-                }
+                const fromUser = fromUserMap.get(notification.fromUserId);
                 return {
-                    id: notification._id.toString(),
+                    id: notification.id,
+                    _id: notification.id,
                     type: notification.type,
                     fromUser: {
-                        id: fromUserData._id.toString(),
-                        username: fromUserData.fullName || '',
-                        fullName: fromUserData.fullName || '',
-                        avatar: fromUserData.avatar || null,
+                        id: notification.fromUserId,
+                        _id: notification.fromUserId,
+                        username: fromUser?.fullName || '',
+                        fullName: fromUser?.fullName || '',
+                        avatar: fromUser?.avatar || null,
                     },
-                    postId: notification.postId ? notification.postId.toString() : null,
+                    postId: notification.postId || null,
                     postOwnerName: notification.postOwnerName || null,
                     isFollowerNotification: notification.isFollowerNotification || false,
                     read: notification.read || false,
@@ -80,14 +75,12 @@ let NotificationsService = class NotificationsService {
         };
     }
     async markAsRead(notificationId, userId) {
-        const notification = await this.notificationModel.findOne({
-            _id: notificationId,
-            userId,
-            deletedAt: null,
-            read: false,
+        const notification = await this.notificationRepository.findOne({
+            where: { id: notificationId, userId, deletedAt: (0, typeorm_2.IsNull)(), read: false },
         });
         if (notification) {
-            await this.notificationModel.updateOne({ _id: notificationId, userId, deletedAt: null }, { read: true });
+            notification.read = true;
+            await this.notificationRepository.save(notification);
             const cacheKey = `notification:unread:${userId}`;
             const cached = await this.redisService.get(cacheKey);
             if (cached !== null) {
@@ -102,7 +95,7 @@ let NotificationsService = class NotificationsService {
         }
     }
     async markAllAsRead(userId) {
-        await this.notificationModel.updateMany({ userId, read: false, deletedAt: null }, { read: true });
+        await this.notificationRepository.update({ userId, read: false, deletedAt: (0, typeorm_2.IsNull)() }, { read: true });
         await this.redisService.set(`notification:unread:${userId}`, '0', 60);
     }
     async getUnreadCount(userId) {
@@ -111,10 +104,8 @@ let NotificationsService = class NotificationsService {
         if (cached !== null) {
             return parseInt(cached);
         }
-        const count = await this.notificationModel.countDocuments({
-            userId,
-            read: false,
-            deletedAt: null,
+        const count = await this.notificationRepository.count({
+            where: { userId, read: false, deletedAt: (0, typeorm_2.IsNull)() },
         });
         await this.redisService.set(cacheKey, count.toString(), 60);
         return count;
@@ -137,8 +128,10 @@ let NotificationsService = class NotificationsService {
 exports.NotificationsService = NotificationsService;
 exports.NotificationsService = NotificationsService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(notification_entity_1.Notification.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model,
+    __param(0, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
+    __param(1, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         redis_service_1.RedisService])
 ], NotificationsService);
 //# sourceMappingURL=notifications.service.js.map

@@ -1,6 +1,6 @@
 # 🏥 Health Check & Performance Monitoring
 
-Tosyam Backend, sistem sağlığını ve performansını izlemek için health check endpoint'leri sunar.
+Civarimda Backend, sistem sağlığını ve performansını izlemek için health check endpoint'leri sunar.
 
 ## 📡 Endpoints
 
@@ -52,7 +52,7 @@ Detaylı sağlık kontrolü. Database ve Redis bağlantı durumlarını içerir.
       "status": "up",
       "state": "connected",
       "host": "localhost",
-      "name": "tosyam"
+      "name": "civarimda"
     },
     "redis": {
       "status": "up",
@@ -150,7 +150,7 @@ Docker Compose'da health check kullanımı:
 ```yaml
 services:
   backend:
-    image: tosyam-backend
+    image: civarimda-backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -167,11 +167,11 @@ Kubernetes deployment'ta health check kullanımı:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: tosyam-backend
+  name: civarimda-backend
 spec:
   containers:
   - name: backend
-    image: tosyam-backend
+    image: civarimda-backend
     livenessProbe:
       httpGet:
         path: /health
@@ -221,7 +221,7 @@ Prometheus için custom exporter veya `/health/metrics` endpoint'ini scrape edeb
 **prometheus.yml:**
 ```yaml
 scrape_configs:
-  - job_name: 'tosyam-backend'
+  - job_name: 'civarimda-backend'
     scrape_interval: 15s
     metrics_path: '/health/metrics'
     static_configs:
@@ -239,19 +239,19 @@ Grafana'da Prometheus datasource'u ekleyip metrics'leri görselleştirebilirsini
 **alerts.yml:**
 ```yaml
 groups:
-  - name: tosyam-backend
+  - name: civarimda-backend
     rules:
       - alert: ServiceDown
-        expr: up{job="tosyam-backend"} == 0
+        expr: up{job="civarimda-backend"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Tosyam Backend is down"
+          summary: "Civarimda Backend is down"
           description: "Backend service has been down for more than 1 minute"
       
       - alert: HighMemoryUsage
-        expr: process_resident_memory_bytes{job="tosyam-backend"} > 500000000
+        expr: process_resident_memory_bytes{job="civarimda-backend"} > 500000000
         for: 5m
         labels:
           severity: warning
@@ -260,7 +260,7 @@ groups:
           description: "Memory usage is above 500MB for 5 minutes"
       
       - alert: DatabaseDown
-        expr: database_status{job="tosyam-backend"} == 0
+        expr: database_status{job="civarimda-backend"} == 0
         for: 1m
         labels:
           severity: critical
@@ -385,7 +385,7 @@ docker-compose ps mongodb
 docker-compose logs mongodb
 
 # Test MongoDB connection
-mongosh mongodb://localhost:27017/tosyam
+mongosh mongodb://localhost:27017/civarimda
 ```
 
 ### Redis Status "down"
@@ -408,7 +408,7 @@ redis-cli ping
 curl http://localhost:3000/health/metrics | jq '.memory'
 
 # Restart application if needed
-pm2 restart tosyam-backend
+pm2 restart civarimda-backend
 
 # Or with Docker
 docker-compose restart backend

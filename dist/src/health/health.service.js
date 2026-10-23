@@ -14,15 +14,15 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HealthService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const redis_service_1 = require("../common/redis/redis.service");
 let HealthService = class HealthService {
-    connection;
+    dataSource;
     redisService;
     startTime = Date.now();
-    constructor(connection, redisService) {
-        this.connection = connection;
+    constructor(dataSource, redisService) {
+        this.dataSource = dataSource;
         this.redisService = redisService;
     }
     async getDetailedHealth() {
@@ -72,29 +72,20 @@ let HealthService = class HealthService {
     }
     async checkDatabase() {
         try {
-            const state = this.connection.readyState;
-            const states = {
-                0: 'disconnected',
-                1: 'connected',
-                2: 'connecting',
-                3: 'disconnecting',
-            };
-            if (state === 1 && this.connection.db) {
-                await this.connection.db.admin().ping();
-                return {
-                    status: 'up',
-                    state: states[state],
-                    host: this.connection.host,
-                    name: this.connection.name,
-                };
-            }
-            else {
+            if (!this.dataSource || !this.dataSource.isInitialized) {
                 return {
                     status: 'down',
-                    state: states[state] || 'unknown',
-                    message: 'Database not connected',
+                    state: 'disconnected',
+                    message: 'PostgreSQL database not initialized',
                 };
             }
+            await this.dataSource.query('SELECT 1');
+            return {
+                status: 'up',
+                state: 'connected',
+                type: 'postgres',
+                database: this.dataSource.options.database || 'civarimda',
+            };
         }
         catch (error) {
             return {
@@ -137,19 +128,17 @@ let HealthService = class HealthService {
     }
     async getDatabaseMetrics() {
         try {
-            const db = this.connection.db;
-            if (!db) {
+            if (!this.dataSource || !this.dataSource.isInitialized) {
                 return {
                     error: 'Database not connected',
                 };
             }
-            const stats = await db.stats();
+            const [tableCountResult] = await this.dataSource.query(`SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'`);
+            const [dbSizeResult] = await this.dataSource.query(`SELECT pg_size_pretty(pg_database_size(current_database())) as size`);
             return {
-                collections: stats.collections,
-                dataSize: this.formatBytes(stats.dataSize),
-                indexSize: this.formatBytes(stats.indexSize),
-                storageSize: this.formatBytes(stats.storageSize),
-                indexes: stats.indexes,
+                type: 'PostgreSQL',
+                tables: Number(tableCountResult?.count || 0),
+                databaseSize: dbSizeResult?.size || 'unknown',
             };
         }
         catch (error) {
@@ -201,8 +190,8 @@ let HealthService = class HealthService {
 exports.HealthService = HealthService;
 exports.HealthService = HealthService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectConnection)()),
-    __metadata("design:paramtypes", [mongoose_2.Connection,
+    __param(0, (0, typeorm_1.InjectDataSource)()),
+    __metadata("design:paramtypes", [typeorm_2.DataSource,
         redis_service_1.RedisService])
 ], HealthService);
 //# sourceMappingURL=health.service.js.map

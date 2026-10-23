@@ -1,29 +1,28 @@
 
 services:
-  mongodb:
-    image: mongo:7.0
-    container_name: tosyam-mongodb
+  postgres:
+    image: postgres:16-alpine
+    container_name: civarimda-postgres
     restart: unless-stopped
     ports:
-      - "${MONGODB_PORT:-27017}:27017"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
-      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-tosyam}
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-civarimda}
+      POSTGRES_USER: ${POSTGRES_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
+      - postgres_data:/var/lib/postgresql/data
     networks:
-      - tosyam-network
+      - civarimda-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgres} -d ${POSTGRES_DATABASE:-civarimda}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: tosyam-redis
+    container_name: civarimda-redis
     restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -37,7 +36,7 @@ services:
       timeout: 3s
       retries: 3
     networks:
-      - tosyam-network
+      - civarimda-network
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
 
@@ -45,7 +44,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: tosyam-backend
+    container_name: civarimda-backend
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
@@ -53,22 +52,24 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=${BACKEND_PORT:-3000}
       - JWT_SECRET=${JWT_SECRET}
-      - MONGODB_USERNAME=${MONGODB_USERNAME:-}
-      - MONGODB_PASSWORD=${MONGODB_PASSWORD:-}
-      - MONGODB_DATABASE=${MONGODB_DATABASE:-tosyam}
-      - MONGODB_URI=${MONGODB_URI:-mongodb://${MONGODB_USERNAME:+${MONGODB_USERNAME}${MONGODB_PASSWORD:+:${MONGODB_PASSWORD}}@}mongodb:27017/${MONGODB_DATABASE:-tosyam}${MONGODB_USERNAME:+?authSource=admin}}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DATABASE=${POSTGRES_DATABASE:-civarimda}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USERNAME:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DATABASE:-civarimda}}
       - REDIS_URL=${REDIS_URL:-redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
     depends_on:
-      mongodb:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - tosyam-network
+      - civarimda-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
@@ -77,14 +78,12 @@ services:
       start_period: 40s
 
 volumes:
-  mongodb_data:
-    driver: local
-  mongodb_config:
+  postgres_data:
     driver: local
   redis-data:
     driver: local
 
 networks:
-  tosyam-network:
+  civarimda-network:
     driver: bridge
 

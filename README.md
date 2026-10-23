@@ -1,4 +1,4 @@
-# Tosyam Backend API (NestJS)
+# Civarimda Backend API (NestJS)
 
 Sosyal medya uygulaması için NestJS backend API.
 
@@ -46,7 +46,7 @@ docker-compose down -v
 **MongoDB:**
 - Host: `localhost`
 - Port: `27017` (varsayılan, `.env.docker`'da değiştirilebilir)
-- Database: `tosyam`
+- Database: `civarimda`
 - Auth: Development'ta yok, production'da `.env.docker`'dan
 
 **MongoDB Web Arayüzü (Sadece Development):**
@@ -87,7 +87,7 @@ Proje root dizininde `.env` dosyası oluşturun ve aşağıdaki değişkenleri e
 JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters-long-for-development
 
 # MongoDB Connection URI
-MONGODB_URI=mongodb://localhost:27017/tosyam
+MONGODB_URI=mongodb://localhost:27017/civarimda
 
 # ============================================
 # OPTIONAL VARIABLES (OPSİYONEL)

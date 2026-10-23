@@ -14,16 +14,17 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdsService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const ad_entity_1 = require("../entities/ad.entity");
 const activity_log_entity_1 = require("../entities/activity-log.entity");
+const id_util_1 = require("../common/utils/id.util");
 let AdsService = class AdsService {
-    adModel;
-    activityLogModel;
-    constructor(adModel, activityLogModel) {
-        this.adModel = adModel;
-        this.activityLogModel = activityLogModel;
+    adRepository;
+    activityLogRepository;
+    constructor(adRepository, activityLogRepository) {
+        this.adRepository = adRepository;
+        this.activityLogRepository = activityLogRepository;
     }
     async create(createAdDto, adminId) {
         const startDate = new Date(createAdDto.startDate);
@@ -31,7 +32,7 @@ let AdsService = class AdsService {
         if (endDate <= startDate) {
             throw new common_1.BadRequestException('End date must be after start date');
         }
-        const ad = await this.adModel.create({
+        const ad = this.adRepository.create({
             ...createAdDto,
             startDate,
             endDate,
@@ -42,32 +43,33 @@ let AdsService = class AdsService {
             impressionCount: 0,
             spentAmount: 0,
         });
-        await this.activityLogModel.create({
+        await this.adRepository.save(ad);
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.AD_CREATED,
-            targetAdId: ad._id.toString(),
+            targetAdId: ad.id,
             description: `Ad created: ${ad.title}`,
-            metadata: { adId: ad._id.toString() },
+            metadata: { adId: ad.id },
         });
+        await this.activityLogRepository.save(log);
         return ad;
     }
     async findAll(status, page = 1, limit = 20) {
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 100);
-        const filter = {};
-        if (status)
-            filter.status = status;
-        const ads = await this.adModel
-            .find(filter)
-            .populate('createdBy', 'fullName avatar')
-            .sort({ createdAt: -1 })
+        const query = this.adRepository.createQueryBuilder('ad');
+        if (status) {
+            query.andWhere('ad.status = :status', { status });
+        }
+        const [ads, total] = await query
+            .orderBy('ad.createdAt', 'DESC')
             .skip(skip)
-            .limit(maxLimit)
-            .lean();
-        const total = await this.adModel.countDocuments(filter);
+            .take(maxLimit)
+            .getManyAndCount();
         return {
             ads: ads.map((ad) => ({
-                id: ad._id.toString(),
+                id: ad.id,
+                _id: ad.id,
                 title: ad.title,
                 type: ad.type,
                 mediaUrl: ad.mediaUrl,
@@ -79,11 +81,11 @@ let AdsService = class AdsService {
                 clickCount: ad.clickCount || 0,
                 viewCount: ad.viewCount || 0,
                 impressionCount: ad.impressionCount || 0,
-                createdBy: (ad.createdBy && typeof ad.createdBy === 'object' ? (ad.createdBy._id || ad.createdBy) : ad.createdBy)?.toString(),
+                createdBy: ad.createdBy,
                 maxImpressions: ad.maxImpressions || 0,
-                budget: ad.budget || 0,
-                spentAmount: ad.spentAmount || 0,
-                createdAt: ad.createdAt || new Date(),
+                budget: Number(ad.budget) || 0,
+                spentAmount: Number(ad.spentAmount) || 0,
+                createdAt: ad.createdAt,
             })),
             pagination: {
                 page,
@@ -95,17 +97,15 @@ let AdsService = class AdsService {
     }
     async getActiveAds() {
         const now = new Date();
-        const ads = await this.adModel.find({
-            status: ad_entity_1.AdStatus.ACTIVE,
-            startDate: { $lte: now },
-            endDate: { $gte: now },
-            $or: [
-                { maxImpressions: 0 },
-                { $expr: { $lt: ['$impressionCount', '$maxImpressions'] } },
-            ],
-        }).lean();
+        const ads = await this.adRepository
+            .createQueryBuilder('ad')
+            .where('ad.status = :status', { status: ad_entity_1.AdStatus.ACTIVE })
+            .andWhere('ad.startDate <= :now AND ad.endDate >= :now', { now })
+            .andWhere('(ad.maxImpressions = 0 OR ad.impressionCount < ad.maxImpressions)')
+            .getMany();
         return ads.map((ad) => ({
-            id: ad._id.toString(),
+            id: ad.id,
+            _id: ad.id,
             title: ad.title,
             type: ad.type,
             mediaUrl: ad.mediaUrl,
@@ -117,26 +117,24 @@ let AdsService = class AdsService {
             clickCount: ad.clickCount || 0,
             viewCount: ad.viewCount || 0,
             impressionCount: ad.impressionCount || 0,
-            createdBy: (ad.createdBy && typeof ad.createdBy === 'object' ? (ad.createdBy._id || ad.createdBy) : ad.createdBy)?.toString(),
+            createdBy: ad.createdBy,
             maxImpressions: ad.maxImpressions || 0,
-            budget: ad.budget || 0,
-            spentAmount: ad.spentAmount || 0,
-            createdAt: ad.createdAt || new Date(),
+            budget: Number(ad.budget) || 0,
+            spentAmount: Number(ad.spentAmount) || 0,
+            createdAt: ad.createdAt,
         }));
     }
     async findOne(adId) {
-        if (!mongoose_2.Types.ObjectId.isValid(adId)) {
+        if (!(0, id_util_1.isValidId)(adId)) {
             throw new common_1.BadRequestException('Invalid ad ID format');
         }
-        const ad = await this.adModel
-            .findById(adId)
-            .populate('createdBy', 'fullName avatar')
-            .lean();
+        const ad = await this.adRepository.findOne({ where: { id: adId } });
         if (!ad) {
             throw new common_1.NotFoundException('Ad not found');
         }
         return {
-            id: ad._id.toString(),
+            id: ad.id,
+            _id: ad.id,
             title: ad.title,
             type: ad.type,
             mediaUrl: ad.mediaUrl,
@@ -148,18 +146,18 @@ let AdsService = class AdsService {
             clickCount: ad.clickCount || 0,
             viewCount: ad.viewCount || 0,
             impressionCount: ad.impressionCount || 0,
-            createdBy: (ad.createdBy && typeof ad.createdBy === 'object' ? (ad.createdBy._id || ad.createdBy) : ad.createdBy)?.toString(),
+            createdBy: ad.createdBy,
             maxImpressions: ad.maxImpressions || 0,
-            budget: ad.budget || 0,
-            spentAmount: ad.spentAmount || 0,
-            createdAt: ad.createdAt || new Date(),
+            budget: Number(ad.budget) || 0,
+            spentAmount: Number(ad.spentAmount) || 0,
+            createdAt: ad.createdAt,
         };
     }
     async update(adId, updateAdDto, adminId) {
-        if (!mongoose_2.Types.ObjectId.isValid(adId)) {
+        if (!(0, id_util_1.isValidId)(adId)) {
             throw new common_1.BadRequestException('Invalid ad ID format');
         }
-        const ad = await this.adModel.findById(adId);
+        const ad = await this.adRepository.findOne({ where: { id: adId } });
         if (!ad) {
             throw new common_1.NotFoundException('Ad not found');
         }
@@ -172,113 +170,101 @@ let AdsService = class AdsService {
             throw new common_1.BadRequestException('End date must be after start date');
         }
         Object.assign(ad, updateData);
-        await ad.save();
-        await this.activityLogModel.create({
+        await this.adRepository.save(ad);
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.AD_UPDATED,
             targetAdId: adId,
             description: `Ad updated: ${ad.title}`,
             metadata: { adId, updates: updateAdDto },
         });
+        await this.activityLogRepository.save(log);
         return ad;
     }
     async delete(adId, adminId) {
-        if (!mongoose_2.Types.ObjectId.isValid(adId)) {
+        if (!(0, id_util_1.isValidId)(adId)) {
             throw new common_1.BadRequestException('Invalid ad ID format');
         }
-        const ad = await this.adModel.findById(adId);
+        const ad = await this.adRepository.findOne({ where: { id: adId } });
         if (!ad) {
             throw new common_1.NotFoundException('Ad not found');
         }
-        await this.adModel.findByIdAndDelete(adId);
-        await this.activityLogModel.create({
+        await this.adRepository.delete({ id: adId });
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.AD_DELETED,
             targetAdId: adId,
             description: `Ad deleted: ${ad.title}`,
             metadata: { adId },
         });
+        await this.activityLogRepository.save(log);
         return { success: true };
     }
     async recordImpression(adId) {
-        await this.adModel.findByIdAndUpdate(adId, {
-            $inc: { impressionCount: 1 },
-        });
+        await this.adRepository.increment({ id: adId }, 'impressionCount', 1);
     }
     async recordClick(adId) {
-        await this.adModel.findByIdAndUpdate(adId, {
-            $inc: { clickCount: 1 },
-        });
+        await this.adRepository.increment({ id: adId }, 'clickCount', 1);
     }
     async recordView(adId) {
-        await this.adModel.findByIdAndUpdate(adId, {
-            $inc: { viewCount: 1 },
-        });
+        await this.adRepository.increment({ id: adId }, 'viewCount', 1);
     }
     async getStatistics(adId) {
         if (adId) {
-            const ad = await this.adModel.findById(adId);
+            const ad = await this.adRepository.findOne({ where: { id: adId } });
             if (!ad) {
                 throw new common_1.NotFoundException('Ad not found');
             }
             return {
-                adId: ad._id.toString(),
+                adId: ad.id,
                 title: ad.title,
                 clickCount: ad.clickCount,
                 viewCount: ad.viewCount,
                 impressionCount: ad.impressionCount,
                 ctr: ad.impressionCount > 0 ? (ad.clickCount / ad.impressionCount) * 100 : 0,
-                spentAmount: ad.spentAmount,
-                budget: ad.budget,
-                remainingBudget: ad.budget - ad.spentAmount,
+                spentAmount: Number(ad.spentAmount) || 0,
+                budget: Number(ad.budget) || 0,
+                remainingBudget: (Number(ad.budget) || 0) - (Number(ad.spentAmount) || 0),
             };
         }
-        const totalAds = await this.adModel.countDocuments();
-        const activeAds = await this.adModel.countDocuments({ status: ad_entity_1.AdStatus.ACTIVE });
-        const pausedAds = await this.adModel.countDocuments({ status: ad_entity_1.AdStatus.PAUSED });
-        const expiredAds = await this.adModel.countDocuments({ status: ad_entity_1.AdStatus.EXPIRED });
-        const totalStats = await this.adModel.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    totalClicks: { $sum: '$clickCount' },
-                    totalViews: { $sum: '$viewCount' },
-                    totalImpressions: { $sum: '$impressionCount' },
-                    totalSpent: { $sum: '$spentAmount' },
-                    totalBudget: { $sum: '$budget' },
-                },
-            },
-        ]);
-        const stats = totalStats[0] || {
-            totalClicks: 0,
-            totalViews: 0,
-            totalImpressions: 0,
-            totalSpent: 0,
-            totalBudget: 0,
-        };
+        const totalAds = await this.adRepository.count();
+        const activeAds = await this.adRepository.count({ where: { status: ad_entity_1.AdStatus.ACTIVE } });
+        const pausedAds = await this.adRepository.count({ where: { status: ad_entity_1.AdStatus.PAUSED } });
+        const expiredAds = await this.adRepository.count({ where: { status: ad_entity_1.AdStatus.EXPIRED } });
+        const statsRaw = await this.adRepository
+            .createQueryBuilder('ad')
+            .select('SUM(ad.clickCount)', 'totalClicks')
+            .addSelect('SUM(ad.viewCount)', 'totalViews')
+            .addSelect('SUM(ad.impressionCount)', 'totalImpressions')
+            .addSelect('SUM(ad.spentAmount)', 'totalSpent')
+            .addSelect('SUM(ad.budget)', 'totalBudget')
+            .getRawOne();
+        const totalClicks = parseInt(statsRaw?.totalClicks || '0');
+        const totalViews = parseInt(statsRaw?.totalViews || '0');
+        const totalImpressions = parseInt(statsRaw?.totalImpressions || '0');
+        const totalSpent = parseFloat(statsRaw?.totalSpent || '0');
+        const totalBudget = parseFloat(statsRaw?.totalBudget || '0');
         return {
             totalAds,
             activeAds,
             pausedAds,
             expiredAds,
-            totalClicks: stats.totalClicks,
-            totalViews: stats.totalViews,
-            totalImpressions: stats.totalImpressions,
-            totalCTR: stats.totalImpressions > 0
-                ? (stats.totalClicks / stats.totalImpressions) * 100
-                : 0,
-            totalSpent: stats.totalSpent,
-            totalBudget: stats.totalBudget,
-            remainingBudget: stats.totalBudget - stats.totalSpent,
+            totalClicks,
+            totalViews,
+            totalImpressions,
+            totalCTR: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+            totalSpent,
+            totalBudget,
+            remainingBudget: totalBudget - totalSpent,
         };
     }
 };
 exports.AdsService = AdsService;
 exports.AdsService = AdsService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(ad_entity_1.Ad.name)),
-    __param(1, (0, mongoose_1.InjectModel)(activity_log_entity_1.ActivityLog.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model,
-        mongoose_2.Model])
+    __param(0, (0, typeorm_1.InjectRepository)(ad_entity_1.Ad)),
+    __param(1, (0, typeorm_1.InjectRepository)(activity_log_entity_1.ActivityLog)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository])
 ], AdsService);
 //# sourceMappingURL=ads.service.js.map

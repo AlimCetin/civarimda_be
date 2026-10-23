@@ -14,39 +14,47 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../entities/user.entity");
 const activity_log_entity_1 = require("../entities/activity-log.entity");
+const post_entity_1 = require("../entities/post.entity");
+const id_util_1 = require("../common/utils/id.util");
 let AdminService = class AdminService {
-    userModel;
-    activityLogModel;
-    postModel;
-    constructor(userModel, activityLogModel, postModel) {
-        this.userModel = userModel;
-        this.activityLogModel = activityLogModel;
-        this.postModel = postModel;
+    userRepository;
+    activityLogRepository;
+    postRepository;
+    constructor(userRepository, activityLogRepository, postRepository) {
+        this.userRepository = userRepository;
+        this.activityLogRepository = activityLogRepository;
+        this.postRepository = postRepository;
     }
     async getDashboardStatistics() {
-        const totalUsers = await this.userModel.countDocuments({ deletedAt: null });
-        const newUsersToday = await this.userModel.countDocuments({
-            createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-            deletedAt: null,
+        const totalUsers = await this.userRepository.count({ where: { deletedAt: (0, typeorm_2.IsNull)() } });
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const newUsersToday = await this.userRepository.count({
+            where: {
+                createdAt: (0, typeorm_2.MoreThan)(oneDayAgo),
+                deletedAt: (0, typeorm_2.IsNull)(),
+            },
         });
-        const newUsersThisWeek = await this.userModel.countDocuments({
-            createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-            deletedAt: null,
+        const newUsersThisWeek = await this.userRepository.count({
+            where: {
+                createdAt: (0, typeorm_2.MoreThan)(oneWeekAgo),
+                deletedAt: (0, typeorm_2.IsNull)(),
+            },
         });
-        const bannedUsers = await this.userModel.countDocuments({
-            $or: [
-                { isPermanentlyBanned: true },
-                { bannedUntil: { $gt: new Date() } },
-            ],
-            deletedAt: null,
-        });
-        const warnedUsers = await this.userModel.countDocuments({
-            warningCount: { $gt: 0 },
-            deletedAt: null,
+        const bannedUsers = await this.userRepository
+            .createQueryBuilder('u')
+            .where('u.deletedAt IS NULL')
+            .andWhere('(u.isPermanentlyBanned = true OR u.bannedUntil > :now)', { now: new Date() })
+            .getCount();
+        const warnedUsers = await this.userRepository.count({
+            where: {
+                warningCount: (0, typeorm_2.MoreThan)(0),
+                deletedAt: (0, typeorm_2.IsNull)(),
+            },
         });
         return {
             totalUsers,
@@ -59,38 +67,32 @@ let AdminService = class AdminService {
     async getUsers(page = 1, limit = 20, search, role, isBanned) {
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 100);
-        const filter = { deletedAt: null };
+        const query = this.userRepository.createQueryBuilder('u').where('u.deletedAt IS NULL');
         if (search) {
-            filter.fullName = { $regex: search, $options: 'i' };
+            query.andWhere('u.fullName ILIKE :search', { search: `%${search}%` });
         }
-        if (role)
-            filter.role = role;
+        if (role) {
+            query.andWhere('u.role = :role', { role });
+        }
         if (isBanned !== undefined) {
             if (isBanned) {
-                filter.$or = [
-                    { isPermanentlyBanned: true },
-                    { bannedUntil: { $gt: new Date() } },
-                ];
+                query.andWhere('(u.isPermanentlyBanned = true OR u.bannedUntil > :now)', { now: new Date() });
             }
             else {
-                filter.isPermanentlyBanned = false;
-                filter.$or = [
-                    { bannedUntil: null },
-                    { bannedUntil: { $lte: new Date() } },
-                ];
+                query.andWhere('u.isPermanentlyBanned = false AND (u.bannedUntil IS NULL OR u.bannedUntil <= :now)', {
+                    now: new Date(),
+                });
             }
         }
-        const users = await this.userModel
-            .find(filter)
-            .select('-savedPosts')
-            .sort({ createdAt: -1 })
+        const [users, total] = await query
+            .orderBy('u.createdAt', 'DESC')
             .skip(skip)
-            .limit(maxLimit)
-            .lean();
-        const total = await this.userModel.countDocuments(filter);
+            .take(maxLimit)
+            .getManyAndCount();
         return {
             users: users.map((user) => ({
-                id: user._id.toString(),
+                id: user.id,
+                _id: user.id,
                 fullName: user.fullName,
                 avatar: user.avatar,
                 bio: user.bio,
@@ -112,25 +114,35 @@ let AdminService = class AdminService {
         };
     }
     async getUserById(userId) {
-        if (!mongoose_2.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        const user = await this.userModel.findById(userId).lean();
-        if (!user || user.deletedAt) {
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!user) {
             throw new common_1.NotFoundException('User not found');
         }
-        const postCount = await this.postModel.countDocuments({
-            userId,
-            deletedAt: null,
+        const postCount = await this.postRepository.count({
+            where: { userId, deletedAt: (0, typeorm_2.IsNull)() },
         });
-        const activityLogs = await this.activityLogModel
-            .find({ targetUserId: userId })
-            .populate('adminId', 'fullName avatar')
-            .sort({ createdAt: -1 })
-            .limit(10)
-            .lean();
+        const activityLogs = await this.activityLogRepository.find({
+            where: { targetUserId: userId },
+            order: { createdAt: 'DESC' },
+            take: 10,
+        });
+        const adminIds = Array.from(new Set(activityLogs.map((l) => l.adminId).filter(Boolean)));
+        let adminMap = new Map();
+        if (adminIds.length > 0) {
+            const admins = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(adminIds) },
+                select: ['id', 'fullName', 'avatar'],
+            });
+            adminMap = new Map(admins.map((a) => [a.id, a]));
+        }
         return {
-            id: user._id.toString(),
+            id: user.id,
+            _id: user.id,
             fullName: user.fullName,
             avatar: user.avatar,
             bio: user.bio,
@@ -142,33 +154,42 @@ let AdminService = class AdminService {
             followingCount: user.following?.length || 0,
             postCount,
             isVerified: user.isVerified || false,
-            activityLogs: activityLogs.map((log) => ({
-                id: log._id.toString(),
-                adminId: (log.adminId?._id || log.adminId)?.toString(),
-                activityType: log.activityType,
-                targetUserId: log.targetUserId,
-                targetPostId: log.targetPostId,
-                description: log.description,
-                metadata: log.metadata,
-                admin: log.adminId && typeof log.adminId === 'object' ? {
-                    id: (log.adminId._id || log.adminId).toString(),
-                    fullName: log.adminId.fullName,
-                    avatar: log.adminId.avatar,
-                } : null,
-                createdAt: log.createdAt || new Date(),
-            })),
-            createdAt: user.createdAt || new Date(),
+            activityLogs: activityLogs.map((log) => {
+                const admin = adminMap.get(log.adminId);
+                return {
+                    id: log.id,
+                    adminId: log.adminId,
+                    activityType: log.activityType,
+                    targetUserId: log.targetUserId,
+                    targetPostId: log.targetPostId,
+                    description: log.description,
+                    metadata: log.metadata,
+                    admin: admin
+                        ? {
+                            id: admin.id,
+                            fullName: admin.fullName,
+                            avatar: admin.avatar,
+                        }
+                        : null,
+                    createdAt: log.createdAt,
+                };
+            }),
+            createdAt: user.createdAt,
         };
     }
     async banUser(targetUserId, adminId, banUserDto) {
-        if (!mongoose_2.Types.ObjectId.isValid(targetUserId)) {
+        if (!(0, id_util_1.isValidId)(targetUserId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        const targetUser = await this.userModel.findById(targetUserId);
-        if (!targetUser || targetUser.deletedAt) {
+        const targetUser = await this.userRepository.findOne({
+            where: { id: targetUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!targetUser) {
             throw new common_1.NotFoundException('User not found');
         }
-        const admin = await this.userModel.findById(adminId);
+        const admin = await this.userRepository.findOne({
+            where: { id: adminId },
+        });
         if (!admin) {
             throw new common_1.NotFoundException('Admin not found');
         }
@@ -188,8 +209,8 @@ let AdminService = class AdminService {
         else {
             throw new common_1.BadRequestException('Either isPermanent or bannedUntil must be provided');
         }
-        await targetUser.save();
-        await this.activityLogModel.create({
+        await this.userRepository.save(targetUser);
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.USER_BANNED,
             targetUserId,
@@ -200,38 +221,44 @@ let AdminService = class AdminService {
                 reason: banUserDto.reason,
             },
         });
+        await this.activityLogRepository.save(log);
         return targetUser;
     }
     async unbanUser(targetUserId, adminId) {
-        if (!mongoose_2.Types.ObjectId.isValid(targetUserId)) {
+        if (!(0, id_util_1.isValidId)(targetUserId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        const targetUser = await this.userModel.findById(targetUserId);
-        if (!targetUser || targetUser.deletedAt) {
+        const targetUser = await this.userRepository.findOne({
+            where: { id: targetUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!targetUser) {
             throw new common_1.NotFoundException('User not found');
         }
         targetUser.isPermanentlyBanned = false;
         targetUser.bannedUntil = null;
-        await targetUser.save();
-        await this.activityLogModel.create({
+        await this.userRepository.save(targetUser);
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.USER_UNBANNED,
             targetUserId,
             description: 'User unbanned',
         });
+        await this.activityLogRepository.save(log);
         return targetUser;
     }
     async warnUser(targetUserId, adminId, reason) {
-        if (!mongoose_2.Types.ObjectId.isValid(targetUserId)) {
+        if (!(0, id_util_1.isValidId)(targetUserId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        const targetUser = await this.userModel.findById(targetUserId);
-        if (!targetUser || targetUser.deletedAt) {
+        const targetUser = await this.userRepository.findOne({
+            where: { id: targetUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!targetUser) {
             throw new common_1.NotFoundException('User not found');
         }
         targetUser.warningCount = (targetUser.warningCount || 0) + 1;
-        await targetUser.save();
-        await this.activityLogModel.create({
+        await this.userRepository.save(targetUser);
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.USER_WARNED,
             targetUserId,
@@ -241,17 +268,22 @@ let AdminService = class AdminService {
                 reason,
             },
         });
+        await this.activityLogRepository.save(log);
         return targetUser;
     }
     async changeUserRole(targetUserId, adminId, changeRoleDto) {
-        if (!mongoose_2.Types.ObjectId.isValid(targetUserId)) {
+        if (!(0, id_util_1.isValidId)(targetUserId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        const targetUser = await this.userModel.findById(targetUserId);
-        if (!targetUser || targetUser.deletedAt) {
+        const targetUser = await this.userRepository.findOne({
+            where: { id: targetUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!targetUser) {
             throw new common_1.NotFoundException('User not found');
         }
-        const admin = await this.userModel.findById(adminId);
+        const admin = await this.userRepository.findOne({
+            where: { id: adminId },
+        });
         if (!admin) {
             throw new common_1.NotFoundException('Admin not found');
         }
@@ -265,8 +297,8 @@ let AdminService = class AdminService {
         }
         const oldRole = targetUser.role;
         targetUser.role = changeRoleDto.role;
-        await targetUser.save();
-        await this.activityLogModel.create({
+        await this.userRepository.save(targetUser);
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.ROLE_CHANGED,
             targetUserId,
@@ -276,47 +308,90 @@ let AdminService = class AdminService {
                 newRole: changeRoleDto.role,
             },
         });
+        await this.activityLogRepository.save(log);
         return targetUser;
     }
     async deletePost(postId, adminId, reason) {
-        if (!mongoose_2.Types.ObjectId.isValid(postId)) {
+        if (!(0, id_util_1.isValidId)(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
-        const post = await this.postModel.findById(postId);
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post) {
             throw new common_1.NotFoundException('Post not found');
         }
         post.deletedAt = new Date();
-        await post.save();
-        await this.activityLogModel.create({
+        await this.postRepository.save(post);
+        const log = this.activityLogRepository.create({
             adminId,
             activityType: activity_log_entity_1.ActivityType.POST_DELETED,
             targetPostId: postId,
-            targetUserId: post.userId.toString(),
+            targetUserId: post.userId,
             description: 'Post deleted by admin',
             metadata: { reason },
         });
+        await this.activityLogRepository.save(log);
         return { success: true };
     }
     async getActivityLogs(page = 1, limit = 20, adminId, activityType) {
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 100);
-        const filter = {};
+        const query = this.activityLogRepository.createQueryBuilder('log');
         if (adminId)
-            filter.adminId = adminId;
+            query.andWhere('log.adminId = :adminId', { adminId });
         if (activityType)
-            filter.activityType = activityType;
-        const logs = await this.activityLogModel
-            .find(filter)
-            .populate('adminId', 'fullName avatar role')
-            .populate('targetUserId', 'fullName avatar')
-            .sort({ createdAt: -1 })
+            query.andWhere('log.activityType = :activityType', { activityType });
+        const [logs, total] = await query
+            .orderBy('log.createdAt', 'DESC')
             .skip(skip)
-            .limit(maxLimit)
-            .lean();
-        const total = await this.activityLogModel.countDocuments(filter);
+            .take(maxLimit)
+            .getManyAndCount();
+        const relatedUserIds = Array.from(new Set([
+            ...logs.map((l) => l.adminId),
+            ...logs.map((l) => l.targetUserId).filter(Boolean),
+        ]));
+        let userMap = new Map();
+        if (relatedUserIds.length > 0) {
+            const users = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(relatedUserIds) },
+                select: ['id', 'fullName', 'avatar', 'role'],
+            });
+            userMap = new Map(users.map((u) => [u.id, u]));
+        }
         return {
-            logs,
+            logs: logs.map((log) => {
+                const admin = userMap.get(log.adminId);
+                const targetUser = log.targetUserId ? userMap.get(log.targetUserId) : null;
+                return {
+                    id: log.id,
+                    _id: log.id,
+                    adminId: log.adminId,
+                    activityType: log.activityType,
+                    targetUserId: log.targetUserId,
+                    targetPostId: log.targetPostId,
+                    description: log.description,
+                    metadata: log.metadata,
+                    admin: admin
+                        ? {
+                            id: admin.id,
+                            _id: admin.id,
+                            fullName: admin.fullName,
+                            avatar: admin.avatar,
+                            role: admin.role,
+                        }
+                        : null,
+                    targetUser: targetUser
+                        ? {
+                            id: targetUser.id,
+                            _id: targetUser.id,
+                            fullName: targetUser.fullName,
+                            avatar: targetUser.avatar,
+                        }
+                        : null,
+                    createdAt: log.createdAt,
+                };
+            }),
             pagination: {
                 page,
                 limit: maxLimit,
@@ -329,11 +404,11 @@ let AdminService = class AdminService {
 exports.AdminService = AdminService;
 exports.AdminService = AdminService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
-    __param(1, (0, mongoose_1.InjectModel)(activity_log_entity_1.ActivityLog.name)),
-    __param(2, (0, mongoose_1.InjectModel)('Post')),
-    __metadata("design:paramtypes", [mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model])
+    __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(1, (0, typeorm_1.InjectRepository)(activity_log_entity_1.ActivityLog)),
+    __param(2, (0, typeorm_1.InjectRepository)(post_entity_1.Post)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository])
 ], AdminService);
 //# sourceMappingURL=admin.service.js.map

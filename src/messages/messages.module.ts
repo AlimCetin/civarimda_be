@@ -1,22 +1,22 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
 import { MessagesGateway } from './messages.gateway';
-import { Conversation, ConversationSchema } from '../entities/conversation.entity';
-import { Message, MessageSchema } from '../entities/message.entity';
-import { User, UserSchema } from '../entities/user.entity';
-import { Notification, NotificationSchema } from '../entities/notification.entity';
+import { Conversation } from '../entities/conversation.entity';
+import { Message } from '../entities/message.entity';
+import { User } from '../entities/user.entity';
+import { Notification } from '../entities/notification.entity';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Conversation.name, schema: ConversationSchema },
-      { name: Message.name, schema: MessageSchema },
-      { name: User.name, schema: UserSchema },
-      { name: Notification.name, schema: NotificationSchema },
+    TypeOrmModule.forFeature([
+      Conversation,
+      Message,
+      User,
+      Notification,
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],

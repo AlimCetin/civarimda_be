@@ -20,7 +20,7 @@ const not_blocked_guard_1 = require("../common/guards/not-blocked.guard");
 const user_decorator_1 = require("../common/decorators/user.decorator");
 const user_entity_1 = require("../entities/user.entity");
 const update_profile_dto_1 = require("./dto/update-profile.dto");
-const mongoose_1 = require("mongoose");
+const id_util_1 = require("../common/utils/id.util");
 let UsersController = class UsersController {
     usersService;
     constructor(usersService) {
@@ -53,7 +53,7 @@ let UsersController = class UsersController {
                 followingCount: userObj.following?.length || 0,
             };
         }
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.usersService.findById(userId, user._id.toString());
@@ -62,7 +62,7 @@ let UsersController = class UsersController {
         if (userId === 'current-user-id' || userId === 'me') {
             return this.usersService.getFollowers(user._id.toString(), user._id.toString());
         }
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.usersService.getFollowers(userId, user._id.toString());
@@ -71,31 +71,31 @@ let UsersController = class UsersController {
         if (userId === 'current-user-id' || userId === 'me') {
             return this.usersService.getFollowing(user._id.toString(), user._id.toString());
         }
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.usersService.getFollowing(userId, user._id.toString());
     }
     async follow(userId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.usersService.follow(userId, user._id.toString());
     }
     async unfollow(userId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.usersService.unfollow(userId, user._id.toString());
     }
     async block(userId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.usersService.block(userId, user._id.toString());
     }
     async unblock(userId, user) {
-        if (!mongoose_1.Types.ObjectId.isValid(userId)) {
+        if (!id_util_1.Types.ObjectId.isValid(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         return this.usersService.unblock(userId, user._id.toString());

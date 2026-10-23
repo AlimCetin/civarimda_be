@@ -1,22 +1,22 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
-import { Report, ReportSchema } from '../entities/report.entity';
-import { Post, PostSchema } from '../entities/post.entity';
-import { User, UserSchema } from '../entities/user.entity';
-import { Comment, CommentSchema } from '../entities/comment.entity';
-import { Message, MessageSchema } from '../entities/message.entity';
+import { Report } from '../entities/report.entity';
+import { Post } from '../entities/post.entity';
+import { User } from '../entities/user.entity';
+import { Comment } from '../entities/comment.entity';
+import { Message } from '../entities/message.entity';
 import { ModeratorGuard } from '../common/guards/moderator.guard';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Report.name, schema: ReportSchema },
-      { name: Post.name, schema: PostSchema },
-      { name: User.name, schema: UserSchema },
-      { name: Comment.name, schema: CommentSchema },
-      { name: Message.name, schema: MessageSchema },
+    TypeOrmModule.forFeature([
+      Report,
+      Post,
+      User,
+      Comment,
+      Message,
     ]),
   ],
   controllers: [ReportsController],
@@ -24,4 +24,3 @@ import { ModeratorGuard } from '../common/guards/moderator.guard';
   exports: [ReportsService],
 })
 export class ReportsModule {}
-

@@ -9,36 +9,81 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ConversationSchema = exports.Conversation = void 0;
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
-let Conversation = class Conversation extends mongoose_2.Document {
+exports.Conversation = void 0;
+const typeorm_1 = require("typeorm");
+const crypto_1 = require("crypto");
+let Conversation = class Conversation {
+    id;
+    get _id() {
+        return this.id;
+    }
     participants;
     lastMessage;
     lastMessageAt;
     deletedAt;
+    createdAt;
+    updatedAt;
+    generateId() {
+        if (!this.id) {
+            this.id = (0, crypto_1.randomUUID)();
+        }
+    }
+    populateVirtuals() {
+        this._id = this.id;
+        if (!this.participants)
+            this.participants = [];
+    }
+    toObject() {
+        return {
+            ...this,
+            _id: this.id,
+            participants: this.participants || [],
+        };
+    }
 };
 exports.Conversation = Conversation;
 __decorate([
-    (0, mongoose_1.Prop)({ type: [{ type: String, ref: 'User' }], required: true }),
+    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    __metadata("design:type", String)
+], Conversation.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', array: true, default: '{}' }),
     __metadata("design:type", Array)
 ], Conversation.prototype, "participants", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: String, ref: 'Message' }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64, nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Conversation.prototype, "lastMessage", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: Date.now }),
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone', default: () => 'CURRENT_TIMESTAMP' }),
     __metadata("design:type", Date)
 ], Conversation.prototype, "lastMessageAt", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: null }),
-    __metadata("design:type", Date)
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone', nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Conversation.prototype, "deletedAt", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Conversation.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Conversation.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_1.BeforeInsert)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Conversation.prototype, "generateId", null);
+__decorate([
+    (0, typeorm_1.AfterLoad)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Conversation.prototype, "populateVirtuals", null);
 exports.Conversation = Conversation = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, typeorm_1.Entity)('conversations'),
+    (0, typeorm_1.Index)(['lastMessageAt'])
 ], Conversation);
-exports.ConversationSchema = mongoose_1.SchemaFactory.createForClass(Conversation);
-exports.ConversationSchema.index({ participants: 1 });
-exports.ConversationSchema.index({ lastMessageAt: -1 });
 //# sourceMappingURL=conversation.entity.js.map

@@ -8,12 +8,12 @@ export class AppController {
 
   @Get('health')
   health() {
-    return { status: 'OK', message: 'Tosyam API is running' };
+    return { status: 'OK', message: 'Civarımda API is running' };
   }
 
   @Get()
   root() {
-    return { message: 'Welcome to Tosyam API v' + this.LATEST_VERSION };
+    return { message: 'Welcome to Civarımda API v' + this.LATEST_VERSION };
   }
 
   /**
@@ -38,7 +38,7 @@ export class AppController {
         : isUpdateRequired
           ? `Yeni versiyon ${this.LATEST_VERSION} mevcut. Önerilen özellikler ve hata düzeltmeleri için lütfen güncelleyin.`
           : 'Uygulamanız güncel.',
-      androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.tosyam',
+      androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.civarimda.app',
       iosStoreUrl: 'https://apps.apple.com/app/idYOUR_APP_ID', // iOS App Store ID'nizi buraya ekleyin
       platform: platform || 'unknown',
     };

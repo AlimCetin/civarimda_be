@@ -9,9 +9,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdSchema = exports.Ad = exports.AdStatus = exports.AdType = void 0;
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+exports.Ad = exports.AdStatus = exports.AdType = void 0;
+const typeorm_1 = require("typeorm");
+const crypto_1 = require("crypto");
 var AdType;
 (function (AdType) {
     AdType["IMAGE"] = "image";
@@ -24,7 +24,11 @@ var AdStatus;
     AdStatus["EXPIRED"] = "expired";
     AdStatus["DRAFT"] = "draft";
 })(AdStatus || (exports.AdStatus = AdStatus = {}));
-let Ad = class Ad extends mongoose_2.Document {
+let Ad = class Ad {
+    id;
+    get _id() {
+        return this.id;
+    }
     title;
     type;
     mediaUrl;
@@ -40,73 +44,112 @@ let Ad = class Ad extends mongoose_2.Document {
     maxImpressions;
     budget;
     spentAmount;
+    createdAt;
+    updatedAt;
+    generateId() {
+        if (!this.id) {
+            this.id = (0, crypto_1.randomUUID)();
+        }
+    }
+    populateVirtuals() {
+        this._id = this.id;
+    }
+    toObject() {
+        return {
+            ...this,
+            _id: this.id,
+        };
+    }
 };
 exports.Ad = Ad;
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    __metadata("design:type", String)
+], Ad.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
     __metadata("design:type", String)
 ], Ad.prototype, "title", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, enum: AdType }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50 }),
     __metadata("design:type", String)
 ], Ad.prototype, "type", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 500 }),
     __metadata("design:type", String)
 ], Ad.prototype, "mediaUrl", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 500 }),
     __metadata("design:type", String)
 ], Ad.prototype, "linkUrl", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: '' }),
+    (0, typeorm_1.Column)({ type: 'text', default: '' }),
     __metadata("design:type", String)
 ], Ad.prototype, "description", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ enum: AdStatus, default: AdStatus.DRAFT }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: AdStatus.DRAFT }),
     __metadata("design:type", String)
 ], Ad.prototype, "status", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone' }),
     __metadata("design:type", Date)
 ], Ad.prototype, "startDate", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true }),
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone' }),
     __metadata("design:type", Date)
 ], Ad.prototype, "endDate", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
 ], Ad.prototype, "clickCount", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
 ], Ad.prototype, "viewCount", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
 ], Ad.prototype, "impressionCount", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: String, ref: 'User' }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64, nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Ad.prototype, "createdBy", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
 ], Ad.prototype, "maxImpressions", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 12, scale: 2, default: 0 }),
     __metadata("design:type", Number)
 ], Ad.prototype, "budget", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: 0 }),
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 12, scale: 2, default: 0 }),
     __metadata("design:type", Number)
 ], Ad.prototype, "spentAmount", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Ad.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Ad.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_1.BeforeInsert)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Ad.prototype, "generateId", null);
+__decorate([
+    (0, typeorm_1.AfterLoad)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Ad.prototype, "populateVirtuals", null);
 exports.Ad = Ad = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, typeorm_1.Entity)('ads'),
+    (0, typeorm_1.Index)(['status', 'startDate', 'endDate']),
+    (0, typeorm_1.Index)(['createdBy']),
+    (0, typeorm_1.Index)(['createdAt'])
 ], Ad);
-exports.AdSchema = mongoose_1.SchemaFactory.createForClass(Ad);
-exports.AdSchema.index({ status: 1, startDate: 1, endDate: 1 });
-exports.AdSchema.index({ createdBy: 1 });
-exports.AdSchema.index({ createdAt: -1 });
 //# sourceMappingURL=ad.entity.js.map

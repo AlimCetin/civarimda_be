@@ -1,24 +1,61 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
-@Schema({ timestamps: true })
-export class Conversation extends Document {
-  @Prop({ type: [{ type: String, ref: 'User' }], required: true })
+@Entity('conversations')
+@Index(['lastMessageAt'])
+export class Conversation {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
+
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'text', array: true, default: '{}' })
   participants: string[];
 
-  @Prop({ type: String, ref: 'Message' })
-  lastMessage: string;
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  lastMessage: string | null;
 
-  @Prop({ default: Date.now })
+  @Column({ type: 'timestamp with time zone', default: () => 'CURRENT_TIMESTAMP' })
   lastMessageAt: Date;
 
-  @Prop({ default: null })
-  deletedAt: Date;
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
+  deletedAt: Date | null;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+    if (!this.participants) this.participants = [];
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+      participants: this.participants || [],
+    };
+  }
 }
-
-export const ConversationSchema = SchemaFactory.createForClass(Conversation);
-
-// Indexes for performance
-ConversationSchema.index({ participants: 1 }); // For finding conversations by participants
-ConversationSchema.index({ lastMessageAt: -1 }); // For sorting conversations by last message
-

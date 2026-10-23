@@ -8,7 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MessagesModule = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const messages_controller_1 = require("./messages.controller");
@@ -24,11 +24,11 @@ exports.MessagesModule = MessagesModule;
 exports.MessagesModule = MessagesModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            mongoose_1.MongooseModule.forFeature([
-                { name: conversation_entity_1.Conversation.name, schema: conversation_entity_1.ConversationSchema },
-                { name: message_entity_1.Message.name, schema: message_entity_1.MessageSchema },
-                { name: user_entity_1.User.name, schema: user_entity_1.UserSchema },
-                { name: notification_entity_1.Notification.name, schema: notification_entity_1.NotificationSchema },
+            typeorm_1.TypeOrmModule.forFeature([
+                conversation_entity_1.Conversation,
+                message_entity_1.Message,
+                user_entity_1.User,
+                notification_entity_1.Notification,
             ]),
             jwt_1.JwtModule.registerAsync({
                 imports: [config_1.ConfigModule],

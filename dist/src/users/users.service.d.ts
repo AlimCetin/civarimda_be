@@ -1,4 +1,4 @@
-import { Model } from 'mongoose';
+import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
 import { Post } from '../entities/post.entity';
@@ -9,15 +9,15 @@ import { Notification } from '../entities/notification.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { RedisService } from '../common/redis/redis.service';
 export declare class UsersService {
-    private userModel;
-    private credentialsModel;
-    private postModel;
-    private commentModel;
-    private conversationModel;
-    private messageModel;
-    private notificationModel;
+    private userRepository;
+    private credentialsRepository;
+    private postRepository;
+    private commentRepository;
+    private conversationRepository;
+    private messageRepository;
+    private notificationRepository;
     private readonly redisService;
-    constructor(userModel: Model<User>, credentialsModel: Model<UserCredentials>, postModel: Model<Post>, commentModel: Model<Comment>, conversationModel: Model<Conversation>, messageModel: Model<Message>, notificationModel: Model<Notification>, redisService: RedisService);
+    constructor(userRepository: Repository<User>, credentialsRepository: Repository<UserCredentials>, postRepository: Repository<Post>, commentRepository: Repository<Comment>, conversationRepository: Repository<Conversation>, messageRepository: Repository<Message>, notificationRepository: Repository<Notification>, redisService: RedisService);
     findById(userId: string, currentUserId?: string): Promise<any>;
     search(query: string): Promise<any>;
     follow(userId: string, currentUserId: string): Promise<{
@@ -34,10 +34,11 @@ export declare class UsersService {
     }>;
     updateProfile(userId: string, data: UpdateProfileDto): Promise<{
         id: string;
+        _id: string;
         followerCount: number;
         followingCount: number;
         fullName: string;
-        avatar: string;
+        avatar: string | null;
         bio: string;
         followers: string[];
         following: string[];
@@ -53,29 +54,46 @@ export declare class UsersService {
         bannedUntil: Date | null;
         isPermanentlyBanned: boolean;
         deletedAt: Date | null;
-        _id: import("mongoose").Types.ObjectId;
-        $locals: Record<string, unknown>;
-        $op: "save" | "validate" | "remove" | null;
-        $where: Record<string, unknown>;
-        baseModelName?: string;
-        collection: import("mongoose").Collection;
-        db: import("mongoose").Connection;
-        errors?: import("mongoose").Error.ValidationError;
-        isNew: boolean;
-        schema: import("mongoose").Schema;
-        __v: number;
+        createdAt: Date;
+        updatedAt: Date;
+    } | {
+        id: string;
+        _id: string;
+        followerCount: number;
+        followingCount: number;
+        fullName: string;
+        avatar: string | null;
+        bio: string;
+        followers: string[];
+        following: string[];
+        blockedUsers: string[];
+        savedPosts: string[];
+        isVerified: boolean;
+        hideFollowers: boolean;
+        hideFollowing: boolean;
+        hiddenFollowers: string[];
+        hiddenFollowing: string[];
+        role: string;
+        warningCount: number;
+        bannedUntil: Date | null;
+        isPermanentlyBanned: boolean;
+        deletedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
-    getBlockedUsers(userId: string): Promise<string[]>;
+    getBlockedUsers(userId: string): Promise<User[]>;
     getFollowers(userId: string, currentUserId?: string): Promise<{
-        id: any;
-        fullName: any;
-        avatar: any;
+        id: string;
+        _id: string;
+        fullName: string;
+        avatar: string | null;
         isFollowing: boolean;
     }[]>;
     getFollowing(userId: string, currentUserId?: string): Promise<{
-        id: any;
-        fullName: any;
-        avatar: any;
+        id: string;
+        _id: string;
+        fullName: string;
+        avatar: string | null;
         isFollowing: boolean;
     }[]>;
     deleteAccount(userId: string): Promise<{

@@ -1,24 +1,60 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
-@Schema({ timestamps: true })
-export class Comment extends Document {
-  @Prop({ required: true, type: String, ref: 'Post' })
+@Entity('comments')
+@Index(['postId', 'createdAt'])
+@Index(['userId'])
+export class Comment {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
+
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'varchar', length: 64 })
   postId: string;
 
-  @Prop({ required: true, type: String, ref: 'User' })
+  @Column({ type: 'varchar', length: 64 })
   userId: string;
 
-  @Prop({ required: true })
+  @Column({ type: 'text' })
   text: string;
 
-  @Prop({ default: null })
-  deletedAt: Date;
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
+  deletedAt: Date | null;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+    };
+  }
 }
-
-export const CommentSchema = SchemaFactory.createForClass(Comment);
-
-// Indexes for performance
-CommentSchema.index({ postId: 1, createdAt: -1 }); // Compound index for post comments
-CommentSchema.index({ userId: 1 }); // For user comment queries
-

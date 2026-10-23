@@ -1,5 +1,14 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
 export enum ActivityType {
   USER_BANNED = 'user_banned',
@@ -15,38 +24,67 @@ export enum ActivityType {
   ROLE_CHANGED = 'role_changed',
 }
 
-@Schema({ timestamps: true })
-export class ActivityLog extends Document {
-  @Prop({ required: true, type: String, ref: 'User' })
-  adminId: string; // İşlemi yapan admin/moderator
+@Entity('activity_logs')
+@Index(['adminId', 'createdAt'])
+@Index(['targetUserId', 'createdAt'])
+@Index(['activityType', 'createdAt'])
+@Index(['createdAt'])
+export class ActivityLog {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
 
-  @Prop({ required: true, enum: ActivityType })
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'varchar', length: 64 })
+  adminId: string;
+
+  @Column({ type: 'varchar', length: 50 })
   activityType: ActivityType;
 
-  @Prop({ type: String, ref: 'User', default: null })
-  targetUserId: string; // İşlem yapılan kullanıcı (varsa)
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  targetUserId: string | null;
 
-  @Prop({ type: String, ref: 'Post', default: null })
-  targetPostId: string; // İşlem yapılan post (varsa)
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  targetPostId: string | null;
 
-  @Prop({ type: String, ref: 'Report', default: null })
-  targetReportId: string; // İşlem yapılan şikayet (varsa)
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  targetReportId: string | null;
 
-  @Prop({ type: String, ref: 'Ad', default: null })
-  targetAdId: string; // İşlem yapılan reklam (varsa)
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  targetAdId: string | null;
 
-  @Prop({ default: '' })
-  description: string; // İşlem açıklaması
+  @Column({ type: 'text', default: '' })
+  description: string;
 
-  @Prop({ type: Object, default: {} })
-  metadata: Record<string, any>; // Ek bilgiler (ban süresi, eski rol, yeni rol, vb.)
+  @Column({ type: 'jsonb', default: '{}' })
+  metadata: Record<string, any>;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+    if (!this.metadata) this.metadata = {};
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+      metadata: this.metadata || {},
+    };
+  }
 }
-
-export const ActivityLogSchema = SchemaFactory.createForClass(ActivityLog);
-
-// Indexes for performance
-ActivityLogSchema.index({ adminId: 1, createdAt: -1 });
-ActivityLogSchema.index({ targetUserId: 1, createdAt: -1 });
-ActivityLogSchema.index({ activityType: 1, createdAt: -1 });
-ActivityLogSchema.index({ createdAt: -1 });
-

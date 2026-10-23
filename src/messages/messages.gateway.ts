@@ -2,8 +2,8 @@ import { WebSocketGateway, WebSocketServer, SubscribeMessage, OnGatewayConnectio
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { MessagesService } from './messages.service';
 
@@ -19,7 +19,7 @@ export class MessagesGateway implements OnGatewayConnection {
 
   constructor(
     private jwtService: JwtService,
-    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectRepository(User) private userRepository: Repository<User>,
     private messagesService: MessagesService,
     private configService: ConfigService,
   ) {}
@@ -39,14 +39,14 @@ export class MessagesGateway implements OnGatewayConnection {
       }
 
       const payload = this.jwtService.verify(token, { secret });
-      const user = await this.userModel.findById(payload.id);
+      const user = await this.userRepository.findOne({ where: { id: payload.id } });
       if (!user) {
         client.disconnect();
         return;
       }
 
-      client.data.userId = user._id.toString();
-      client.join(`user_${user._id}`);
+      client.data.userId = user.id;
+      client.join(`user_${user.id}`);
     } catch (error) {
       client.disconnect();
     }

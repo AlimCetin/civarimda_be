@@ -1,4 +1,4 @@
-# Güvenlik ve Performans Analizi - Tosyam Backend
+# Güvenlik ve Performans Analizi - Civarimda Backend
 
 ## 🔴 KRİTİK GÜVENLİK AÇIKLARI
 

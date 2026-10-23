@@ -55,7 +55,7 @@ async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule, {
         bodyParser: false,
     });
-    app.useStaticAssets(path.join(__dirname, '..', 'uploads'), {
+    app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
         prefix: '/uploads/',
     });
     const configService = app.get(config_1.ConfigService);
@@ -71,6 +71,7 @@ async function bootstrap() {
                 styleSrc: ["'self'", "'unsafe-inline'"],
                 scriptSrc: ["'self'"],
                 imgSrc: ["'self'", 'data:', 'https:'],
+                mediaSrc: ["'self'", 'https:', 'data:', 'blob:'],
             },
         },
     }));

@@ -5,6 +5,9 @@ export declare class AppController {
         status: string;
         message: string;
     };
+    root(): {
+        message: string;
+    };
     versionCheck(currentVersion?: string, platform?: string): {
         currentVersion: string;
         latestVersion: string;

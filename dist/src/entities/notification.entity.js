@@ -9,10 +9,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NotificationSchema = exports.Notification = void 0;
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
-let Notification = class Notification extends mongoose_2.Document {
+exports.Notification = void 0;
+const typeorm_1 = require("typeorm");
+const crypto_1 = require("crypto");
+let Notification = class Notification {
+    id;
+    get _id() {
+        return this.id;
+    }
     userId;
     fromUserId;
     type;
@@ -21,45 +25,84 @@ let Notification = class Notification extends mongoose_2.Document {
     isFollowerNotification;
     read;
     deletedAt;
+    createdAt;
+    updatedAt;
+    generateId() {
+        if (!this.id) {
+            this.id = (0, crypto_1.randomUUID)();
+        }
+    }
+    populateVirtuals() {
+        this._id = this.id;
+    }
+    toObject() {
+        return {
+            ...this,
+            _id: this.id,
+        };
+    }
 };
 exports.Notification = Notification;
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, type: String, ref: 'User' }),
+    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    __metadata("design:type", String)
+], Notification.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], Notification.prototype, "userId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, type: String, ref: 'User' }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], Notification.prototype, "fromUserId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, enum: ['like', 'comment', 'follow', 'message'] }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50 }),
     __metadata("design:type", String)
 ], Notification.prototype, "type", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: String, ref: 'Post' }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64, nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Notification.prototype, "postId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: String, default: null }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Notification.prototype, "postOwnerName", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: false }),
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
 ], Notification.prototype, "isFollowerNotification", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: false }),
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
 ], Notification.prototype, "read", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ default: null }),
-    __metadata("design:type", Date)
+    (0, typeorm_1.Column)({ type: 'timestamp with time zone', nullable: true, default: null }),
+    __metadata("design:type", Object)
 ], Notification.prototype, "deletedAt", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Notification.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
+    __metadata("design:type", Date)
+], Notification.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_1.BeforeInsert)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Notification.prototype, "generateId", null);
+__decorate([
+    (0, typeorm_1.AfterLoad)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], Notification.prototype, "populateVirtuals", null);
 exports.Notification = Notification = __decorate([
-    (0, mongoose_1.Schema)({ timestamps: true })
+    (0, typeorm_1.Entity)('notifications'),
+    (0, typeorm_1.Index)(['userId', 'createdAt']),
+    (0, typeorm_1.Index)(['userId', 'read']),
+    (0, typeorm_1.Index)(['fromUserId'])
 ], Notification);
-exports.NotificationSchema = mongoose_1.SchemaFactory.createForClass(Notification);
-exports.NotificationSchema.index({ userId: 1, createdAt: -1 });
-exports.NotificationSchema.index({ userId: 1, read: 1 });
-exports.NotificationSchema.index({ fromUserId: 1 });
 //# sourceMappingURL=notification.entity.js.map

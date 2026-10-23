@@ -1,5 +1,4 @@
-import { Model } from 'mongoose';
-import { Types } from 'mongoose';
+import { Repository } from 'typeorm';
 import { Post } from '../entities/post.entity';
 import { Comment } from '../entities/comment.entity';
 import { Notification } from '../entities/notification.entity';
@@ -7,26 +6,36 @@ import { User } from '../entities/user.entity';
 import { Ad } from '../entities/ad.entity';
 import { RedisService } from '../common/redis/redis.service';
 export declare class PostsService {
-    private postModel;
-    private commentModel;
-    private notificationModel;
-    private userModel;
-    private adModel;
+    private postRepository;
+    private commentRepository;
+    private notificationRepository;
+    private userRepository;
+    private adRepository;
     private readonly redisService;
-    constructor(postModel: Model<Post>, commentModel: Model<Comment>, notificationModel: Model<Notification>, userModel: Model<User>, adModel: Model<Ad>, redisService: RedisService);
-    create(userId: string, image: string | undefined, caption: string, isPrivate?: boolean, hiddenFromFollowers?: string[], video?: string): Promise<import("mongoose").Document<unknown, {}, Post, {}, import("mongoose").DefaultSchemaOptions> & Post & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
+    constructor(postRepository: Repository<Post>, commentRepository: Repository<Comment>, notificationRepository: Repository<Notification>, userRepository: Repository<User>, adRepository: Repository<Ad>, redisService: RedisService);
+    create(userId: string, image: string | undefined, caption: string, isPrivate?: boolean, hiddenFromFollowers?: string[], video?: string): Promise<{
         id: string;
+        _id: string;
+        userId: string;
+        image: string | null;
+        video?: string | null;
+        caption: string;
+        likes: string[];
+        commentCount: number;
+        isHidden: boolean;
+        isPrivate: boolean;
+        hiddenFromFollowers: string[];
+        deletedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     getLikes(postId: string, currentUserId: string, page?: number, limit?: number): Promise<{
         users: ({
             id: string;
-            username: any;
-            fullName: any;
-            avatar: any;
+            _id: string;
+            username: string;
+            fullName: string;
+            avatar: string | null;
         } | null)[];
         pagination: {
             page: number;
@@ -38,22 +47,24 @@ export declare class PostsService {
     invalidateFeedCache(userId: string): Promise<void>;
     getUserPosts(userId: string, currentUserId?: string, page?: number, limit?: number): Promise<{
         posts: {
-            id: any;
-            userId: any;
+            id: string;
+            _id: string;
+            userId: string;
             user: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            image: any;
-            video: any;
-            caption: any;
-            likeCount: any;
-            commentCount: any;
-            isLiked: any;
+            image: string | null;
+            video: string | undefined;
+            caption: string;
+            likeCount: number;
+            commentCount: number;
+            isLiked: boolean;
             isSaved: boolean;
-            createdAt: any;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -63,15 +74,17 @@ export declare class PostsService {
     }>;
     getPostById(postId: string, currentUserId: string): Promise<{
         id: string;
-        userId: any;
+        _id: string;
+        userId: string;
         user: {
-            id: any;
-            username: any;
-            fullName: any;
-            avatar: any;
+            id: string;
+            _id: string;
+            username: string;
+            fullName: string;
+            avatar: string | null;
         };
-        image: string;
-        video: any;
+        image: string | null;
+        video: string | undefined;
         caption: string;
         likeCount: number;
         commentCount: number;
@@ -79,8 +92,8 @@ export declare class PostsService {
         isSaved: boolean;
         isHidden: boolean;
         isPrivate: boolean;
-        hiddenFromFollowers: any[];
-        createdAt: any;
+        hiddenFromFollowers: string[];
+        createdAt: Date;
     }>;
     like(postId: string, userId: string): Promise<{
         message: string;
@@ -90,16 +103,18 @@ export declare class PostsService {
     }>;
     getComments(postId: string, page?: number, limit?: number): Promise<{
         comments: {
-            id: any;
-            userId: any;
+            id: string;
+            _id: string;
+            userId: string;
             user: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            text: any;
-            createdAt: any;
+            text: string;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -109,15 +124,17 @@ export declare class PostsService {
     }>;
     addComment(postId: string, userId: string, text: string): Promise<{
         id: string;
-        userId: any;
+        _id: string;
+        userId: string;
         user: {
-            id: any;
-            username: any;
-            fullName: any;
-            avatar: any;
+            id: string;
+            _id: string;
+            username: string;
+            fullName: string;
+            avatar: string | null;
         };
         text: string;
-        createdAt: any;
+        createdAt: Date;
     }>;
     savePost(postId: string, userId: string): Promise<{
         message: string;
@@ -127,25 +144,27 @@ export declare class PostsService {
     }>;
     getSavedPosts(userId: string, page?: number, limit?: number): Promise<{
         posts: {
-            id: any;
-            userId: any;
+            id: string;
+            _id: string;
+            userId: string;
             user: {
-                id: any;
-                username: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                _id: string;
+                username: string;
+                fullName: string;
+                avatar: string | null;
             };
-            image: any;
-            video: any;
-            caption: any;
-            likeCount: any;
-            commentCount: any;
-            isLiked: any;
+            image: string | null;
+            video: string | undefined;
+            caption: string;
+            likeCount: number;
+            commentCount: number;
+            isLiked: boolean;
             isSaved: boolean;
-            isHidden: any;
-            isPrivate: any;
-            hiddenFromFollowers: any;
-            createdAt: any;
+            isHidden: boolean;
+            isPrivate: boolean;
+            hiddenFromFollowers: string[];
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -170,11 +189,15 @@ export declare class PostsService {
         hiddenFromFollowers?: string[];
     }): Promise<{
         message: string;
-        update: any;
+        update: {
+            isPrivate?: boolean;
+            isHidden?: boolean;
+            hiddenFromFollowers?: string[];
+        };
     }>;
     sharePost(postId: string, userId: string, receiverId: string): Promise<{
         postId: string;
-        image: string;
+        image: string | null;
         caption: string;
     }>;
 }

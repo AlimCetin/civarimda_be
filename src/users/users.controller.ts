@@ -5,7 +5,7 @@ import { NotBlockedGuard } from '../common/guards/not-blocked.guard';
 import { CurrentUser } from '../common/decorators/user.decorator';
 import { User } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { Types } from 'mongoose';
+import { Types } from '../common/utils/id.util';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)

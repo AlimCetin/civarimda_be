@@ -14,13 +14,13 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ModeratorGuard = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../../entities/user.entity");
 let ModeratorGuard = class ModeratorGuard {
-    userModel;
-    constructor(userModel) {
-        this.userModel = userModel;
+    userRepository;
+    constructor(userRepository) {
+        this.userRepository = userRepository;
     }
     async canActivate(context) {
         const request = context.switchToHttp().getRequest();
@@ -28,7 +28,11 @@ let ModeratorGuard = class ModeratorGuard {
         if (!user) {
             throw new common_1.ForbiddenException('User not authenticated');
         }
-        const userDoc = await this.userModel.findById(user._id || user.id).select('role');
+        const userId = user.id || user._id;
+        const userDoc = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'role'],
+        });
         if (!userDoc) {
             throw new common_1.ForbiddenException('User not found');
         }
@@ -42,7 +46,7 @@ let ModeratorGuard = class ModeratorGuard {
 exports.ModeratorGuard = ModeratorGuard;
 exports.ModeratorGuard = ModeratorGuard = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model])
+    __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __metadata("design:paramtypes", [typeorm_2.Repository])
 ], ModeratorGuard);
 //# sourceMappingURL=moderator.guard.js.map

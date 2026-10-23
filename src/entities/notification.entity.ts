@@ -1,37 +1,73 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
-@Schema({ timestamps: true })
-export class Notification extends Document {
-  @Prop({ required: true, type: String, ref: 'User' })
+@Entity('notifications')
+@Index(['userId', 'createdAt'])
+@Index(['userId', 'read'])
+@Index(['fromUserId'])
+export class Notification {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
+
+  get _id(): string {
+    return this.id;
+  }
+
+  @Column({ type: 'varchar', length: 64 })
   userId: string;
 
-  @Prop({ required: true, type: String, ref: 'User' })
+  @Column({ type: 'varchar', length: 64 })
   fromUserId: string;
 
-  @Prop({ required: true, enum: ['like', 'comment', 'follow', 'message'] })
+  @Column({ type: 'varchar', length: 50 })
   type: string;
 
-  @Prop({ type: String, ref: 'Post' })
-  postId?: string;
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  postId?: string | null;
 
-  @Prop({ type: String, default: null })
-  postOwnerName?: string; // Takipçi bildirimlerinde post sahibinin adı
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  postOwnerName?: string | null;
 
-  @Prop({ default: false })
-  isFollowerNotification: boolean; // Takipçi bildirimi mi?
+  @Column({ type: 'boolean', default: false })
+  isFollowerNotification: boolean;
 
-  @Prop({ default: false })
+  @Column({ type: 'boolean', default: false })
   read: boolean;
 
-  @Prop({ default: null })
-  deletedAt: Date;
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
+  deletedAt: Date | null;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+    };
+  }
 }
-
-export const NotificationSchema = SchemaFactory.createForClass(Notification);
-
-// Indexes for performance
-NotificationSchema.index({ userId: 1, createdAt: -1 }); // Compound index for user notifications
-NotificationSchema.index({ userId: 1, read: 1 }); // For unread notifications
-NotificationSchema.index({ fromUserId: 1 }); // For notification queries
-

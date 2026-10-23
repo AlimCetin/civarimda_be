@@ -8,7 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersModule = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
 const users_controller_1 = require("./users.controller");
 const users_service_1 = require("./users.service");
 const user_entity_1 = require("../entities/user.entity");
@@ -25,14 +25,14 @@ exports.UsersModule = UsersModule;
 exports.UsersModule = UsersModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            mongoose_1.MongooseModule.forFeature([
-                { name: user_entity_1.User.name, schema: user_entity_1.UserSchema },
-                { name: user_credentials_entity_1.UserCredentials.name, schema: user_credentials_entity_1.UserCredentialsSchema },
-                { name: post_entity_1.Post.name, schema: post_entity_1.PostSchema },
-                { name: comment_entity_1.Comment.name, schema: comment_entity_1.CommentSchema },
-                { name: conversation_entity_1.Conversation.name, schema: conversation_entity_1.ConversationSchema },
-                { name: message_entity_1.Message.name, schema: message_entity_1.MessageSchema },
-                { name: notification_entity_1.Notification.name, schema: notification_entity_1.NotificationSchema },
+            typeorm_1.TypeOrmModule.forFeature([
+                user_entity_1.User,
+                user_credentials_entity_1.UserCredentials,
+                post_entity_1.Post,
+                comment_entity_1.Comment,
+                conversation_entity_1.Conversation,
+                message_entity_1.Message,
+                notification_entity_1.Notification,
             ]),
         ],
         controllers: [users_controller_1.UsersController],

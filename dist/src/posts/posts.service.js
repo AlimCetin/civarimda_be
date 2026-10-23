@@ -14,63 +14,77 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PostsService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
-const mongoose_3 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const post_entity_1 = require("../entities/post.entity");
 const comment_entity_1 = require("../entities/comment.entity");
 const notification_entity_1 = require("../entities/notification.entity");
 const user_entity_1 = require("../entities/user.entity");
 const ad_entity_1 = require("../entities/ad.entity");
 const redis_service_1 = require("../common/redis/redis.service");
+const id_util_1 = require("../common/utils/id.util");
 let PostsService = class PostsService {
-    postModel;
-    commentModel;
-    notificationModel;
-    userModel;
-    adModel;
+    postRepository;
+    commentRepository;
+    notificationRepository;
+    userRepository;
+    adRepository;
     redisService;
-    constructor(postModel, commentModel, notificationModel, userModel, adModel, redisService) {
-        this.postModel = postModel;
-        this.commentModel = commentModel;
-        this.notificationModel = notificationModel;
-        this.userModel = userModel;
-        this.adModel = adModel;
+    constructor(postRepository, commentRepository, notificationRepository, userRepository, adRepository, redisService) {
+        this.postRepository = postRepository;
+        this.commentRepository = commentRepository;
+        this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
+        this.adRepository = adRepository;
         this.redisService = redisService;
     }
     async create(userId, image, caption, isPrivate = false, hiddenFromFollowers = [], video) {
         if (!image && !video) {
             throw new common_1.BadRequestException('Either image or video is required');
         }
-        const post = await this.postModel.create({
+        const post = this.postRepository.create({
             userId,
-            image: image || undefined,
-            video: video || undefined,
-            caption,
+            image: image || null,
+            video: video || null,
+            caption: caption || '',
+            likes: [],
+            commentCount: 0,
+            isHidden: false,
             isPrivate: isPrivate || false,
             hiddenFromFollowers: hiddenFromFollowers || [],
         });
+        await this.postRepository.save(post);
         await this.invalidateFeedCache(userId);
-        return post;
+        return {
+            ...post,
+            id: post.id,
+            _id: post.id,
+        };
     }
     async getLikes(postId, currentUserId, page = 1, limit = 20) {
-        if (!mongoose_3.Types.ObjectId.isValid(postId)) {
+        if (!(0, id_util_1.isValidId)(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null }).select('userId likes isHidden isPrivate hiddenFromFollowers').lean();
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post) {
             throw new common_1.NotFoundException('Post not found');
         }
-        const postOwnerId = post.userId?.toString ? post.userId.toString() : String(post.userId);
+        const postOwnerId = post.userId;
         if (currentUserId !== postOwnerId) {
-            const postOwner = await this.userModel.findOne({ _id: postOwnerId, deletedAt: null }).select('blockedUsers followers').lean();
+            const postOwner = await this.userRepository.findOne({
+                where: { id: postOwnerId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
             if (!postOwner) {
                 throw new common_1.NotFoundException('Post owner not found');
             }
             if (postOwner.blockedUsers?.includes(currentUserId)) {
                 throw new common_1.ForbiddenException('You are blocked by this user');
             }
-            const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('blockedUsers').lean();
+            const currentUser = await this.userRepository.findOne({
+                where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
             if (currentUser?.blockedUsers?.includes(postOwnerId)) {
                 throw new common_1.ForbiddenException('You have blocked this user');
             }
@@ -78,35 +92,43 @@ let PostsService = class PostsService {
                 throw new common_1.NotFoundException('Post not found');
             }
             if (post.isPrivate) {
-                const isFollowing = postOwner.followers?.some((id) => id.toString() === currentUserId) || false;
+                const isFollowing = postOwner.followers?.includes(currentUserId) || false;
                 if (!isFollowing) {
                     throw new common_1.ForbiddenException('This post is only visible to followers');
                 }
-                const isHiddenFrom = post.hiddenFromFollowers?.some((id) => id.toString() === currentUserId) || false;
+                const isHiddenFrom = post.hiddenFromFollowers?.includes(currentUserId) || false;
                 if (isHiddenFrom) {
                     throw new common_1.ForbiddenException('This post is not visible to you');
                 }
             }
         }
-        const likeIds = (post.likes || []).map((id) => id.toString());
+        const likeIds = post.likes || [];
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
         const pagedIds = likeIds.slice(skip, skip + maxLimit);
-        const users = await this.userModel
-            .find({ _id: { $in: pagedIds } })
-            .select('fullName avatar')
-            .lean();
-        const idToUser = {};
-        for (const u of users) {
-            idToUser[u._id.toString()] = u;
+        if (pagedIds.length === 0) {
+            return {
+                users: [],
+                pagination: {
+                    page,
+                    limit: maxLimit,
+                    hasMore: false,
+                },
+            };
         }
+        const users = await this.userRepository.find({
+            where: { id: (0, typeorm_2.In)(pagedIds) },
+            select: ['id', 'fullName', 'avatar'],
+        });
+        const idToUser = new Map(users.map((u) => [u.id, u]));
         const orderedUsers = pagedIds
             .map((id) => {
-            const u = idToUser[id];
+            const u = idToUser.get(id);
             if (!u)
                 return null;
             return {
-                id,
+                id: u.id,
+                _id: u.id,
                 username: u.fullName || '',
                 fullName: u.fullName || '',
                 avatar: u.avatar || null,
@@ -128,85 +150,94 @@ let PostsService = class PostsService {
         if (cached) {
             return JSON.parse(cached);
         }
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null }).select('following blockedUsers savedPosts role');
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        const following = [...user.following, userId];
+        const following = [...(user.following || []), userId];
         const blockedUsers = user.blockedUsers || [];
-        const followingNotBlocked = following.filter(id => !blockedUsers.includes(id));
-        const usersWhoBlockedMe = await this.userModel.find({
-            _id: { $in: following },
-            blockedUsers: userId,
-            deletedAt: null,
-        }).select('_id').lean();
-        const blockedByUserIds = usersWhoBlockedMe.map(u => u._id.toString());
-        const finalFollowing = followingNotBlocked.filter(id => !blockedByUserIds.includes(id));
+        const followingNotBlocked = following.filter((id) => !blockedUsers.includes(id));
+        let finalFollowing = followingNotBlocked;
+        if (followingNotBlocked.length > 0) {
+            const usersWhoBlockedMe = await this.userRepository
+                .createQueryBuilder('u')
+                .where('u.id IN (:...ids)', { ids: followingNotBlocked })
+                .andWhere(':userId = ANY(u.blockedUsers)', { userId })
+                .andWhere('u.deletedAt IS NULL')
+                .select(['u.id'])
+                .getMany();
+            const blockedByUserIds = usersWhoBlockedMe.map((u) => u.id);
+            finalFollowing = followingNotBlocked.filter((id) => !blockedByUserIds.includes(id));
+        }
+        if (finalFollowing.length === 0) {
+            finalFollowing = [userId];
+        }
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
-        const posts = await this.postModel.find({
-            userId: { $in: finalFollowing },
-            deletedAt: null,
-            $or: [
-                { isHidden: false },
-                { isHidden: { $exists: false } },
-                { userId: userId }
-            ]
-        })
-            .populate('userId', 'fullName avatar')
-            .select('userId image video caption likes commentCount createdAt isHidden isPrivate hiddenFromFollowers')
-            .sort({ createdAt: -1 })
+        const posts = await this.postRepository
+            .createQueryBuilder('post')
+            .where('post.deletedAt IS NULL')
+            .andWhere('post.userId IN (:...following)', { following: finalFollowing })
+            .andWhere('(post.isHidden = false OR post.userId = :userId)', { userId })
+            .orderBy('post.createdAt', 'DESC')
             .skip(skip)
-            .limit(maxLimit)
-            .lean();
-        const savedPosts = user.savedPosts?.map((id) => id.toString()) || [];
+            .take(maxLimit)
+            .getMany();
+        const savedPosts = user.savedPosts || [];
         const filteredPosts = posts.filter((post) => {
-            const postOwnerId = (post.userId?._id || post.userId)?.toString();
+            const postOwnerId = post.userId;
             if (postOwnerId === userId)
                 return true;
             if (post.isPrivate) {
                 const isFollowing = finalFollowing.includes(postOwnerId);
-                const isHiddenFrom = post.hiddenFromFollowers?.some((id) => id.toString() === userId) || false;
+                const isHiddenFrom = post.hiddenFromFollowers?.includes(userId) || false;
                 return isFollowing && !isHiddenFrom;
             }
             return true;
         });
+        const authorIds = Array.from(new Set(filteredPosts.map((p) => p.userId)));
+        let authorMap = new Map();
+        if (authorIds.length > 0) {
+            const authors = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(authorIds) },
+                select: ['id', 'fullName', 'avatar'],
+            });
+            authorMap = new Map(authors.map((a) => [a.id, a]));
+        }
         const formattedPosts = filteredPosts.map((post) => {
-            const populatedUserId = post.userId?._id || post.userId;
-            const userData = post.userId?._id
-                ? post.userId
-                : { _id: populatedUserId, fullName: '', avatar: null };
+            const author = authorMap.get(post.userId);
             return {
-                id: post._id.toString(),
+                id: post.id,
+                _id: post.id,
                 type: 'post',
-                userId: populatedUserId.toString(),
+                userId: post.userId,
                 user: {
-                    id: userData._id.toString(),
-                    username: userData.fullName || '',
-                    fullName: userData.fullName || '',
-                    avatar: userData.avatar || null,
+                    id: post.userId,
+                    _id: post.userId,
+                    username: author?.fullName || '',
+                    fullName: author?.fullName || '',
+                    avatar: author?.avatar || null,
                 },
                 image: post.image,
                 video: post.video || undefined,
                 caption: post.caption || '',
                 likeCount: post.likes?.length || 0,
                 commentCount: post.commentCount || 0,
-                isLiked: post.likes?.some((id) => id.toString() === userId) || false,
-                isSaved: savedPosts.includes(post._id.toString()),
+                isLiked: post.likes?.includes(userId) || false,
+                isSaved: savedPosts.includes(post.id),
                 createdAt: post.createdAt,
             };
         });
         let activeAds = [];
         try {
             const now = new Date();
-            activeAds = await this.adModel.find({
-                status: ad_entity_1.AdStatus.ACTIVE,
-                startDate: { $lte: now },
-                endDate: { $gte: now },
-                $or: [
-                    { maxImpressions: 0 },
-                    { $expr: { $lt: ['$impressionCount', '$maxImpressions'] } },
-                ],
-            }).lean();
+            activeAds = await this.adRepository
+                .createQueryBuilder('ad')
+                .where('ad.status = :status', { status: ad_entity_1.AdStatus.ACTIVE })
+                .andWhere('ad.startDate <= :now AND ad.endDate >= :now', { now })
+                .andWhere('(ad.maxImpressions = 0 OR ad.impressionCount < ad.maxImpressions)')
+                .getMany();
         }
         catch (error) {
             console.error('Error fetching ads:', error);
@@ -219,7 +250,8 @@ let PostsService = class PostsService {
             if ((i + 1) % AD_INTERVAL === 0 && activeAds.length > 0) {
                 const ad = activeAds[adIndex % activeAds.length];
                 result.push({
-                    id: ad._id.toString(),
+                    id: ad.id,
+                    _id: ad.id,
                     type: 'ad',
                     title: ad.title,
                     description: ad.description,
@@ -228,9 +260,7 @@ let PostsService = class PostsService {
                     adType: ad.type,
                     createdAt: ad.createdAt,
                 });
-                this.adModel.findByIdAndUpdate(ad._id, {
-                    $inc: { impressionCount: 1 },
-                }).catch(err => {
+                this.adRepository.increment({ id: ad.id }, 'impressionCount', 1).catch((err) => {
                     console.error('Error recording ad impression:', err);
                 });
                 adIndex++;
@@ -259,53 +289,47 @@ let PostsService = class PostsService {
         }
     }
     async getUserPosts(userId, currentUserId, page = 1, limit = 20) {
-        if (!mongoose_3.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
         if (currentUserId && currentUserId !== userId) {
-            const postOwner = await this.userModel.findOne({ _id: userId, deletedAt: null }).select('blockedUsers').lean();
+            const postOwner = await this.userRepository.findOne({
+                where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
             if (!postOwner) {
                 throw new common_1.NotFoundException('User not found');
             }
             if (postOwner.blockedUsers?.includes(currentUserId)) {
                 throw new common_1.ForbiddenException('You are blocked by this user');
             }
-            const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('blockedUsers savedPosts').lean();
+            const currentUser = await this.userRepository.findOne({
+                where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
             if (currentUser?.blockedUsers?.includes(userId)) {
                 throw new common_1.ForbiddenException('You have blocked this user');
             }
         }
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
-        const query = { userId, deletedAt: null };
+        const query = this.postRepository
+            .createQueryBuilder('post')
+            .where('post.userId = :userId', { userId })
+            .andWhere('post.deletedAt IS NULL');
         if (currentUserId !== userId) {
-            query.isHidden = { $ne: true };
+            query.andWhere('post.isHidden = false');
         }
-        const posts = await this.postModel.find(query)
-            .populate('userId', 'fullName avatar')
-            .select('userId image video caption likes commentCount createdAt isHidden isPrivate hiddenFromFollowers')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(maxLimit)
-            .lean();
+        const posts = await query.orderBy('post.createdAt', 'DESC').skip(skip).take(maxLimit).getMany();
         let filteredPosts = posts;
         if (currentUserId && currentUserId !== userId) {
-            const postOwner = await this.userModel.findOne({ _id: userId, deletedAt: null }).select('followers').lean();
-            if (!postOwner) {
-                throw new common_1.NotFoundException('User not found');
-            }
-            const isFollowing = postOwner?.followers?.some((id) => id.toString() === currentUserId) || false;
+            const postOwner = await this.userRepository.findOne({
+                where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
+            const isFollowing = postOwner?.followers?.includes(currentUserId) || false;
             filteredPosts = posts.filter((post) => {
                 if (post.isPrivate) {
-                    if (!isFollowing) {
+                    if (!isFollowing)
                         return false;
-                    }
-                    const hiddenFromFollowers = post.hiddenFromFollowers || [];
-                    const isHiddenFrom = hiddenFromFollowers.some((id) => {
-                        const hiddenId = id?.toString ? id.toString() : String(id);
-                        const currentId = currentUserId.toString();
-                        return hiddenId === currentId;
-                    });
+                    const isHiddenFrom = post.hiddenFromFollowers?.includes(currentUserId) || false;
                     return !isHiddenFrom;
                 }
                 return true;
@@ -313,34 +337,36 @@ let PostsService = class PostsService {
         }
         let savedPosts = [];
         if (currentUserId) {
-            const user = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('savedPosts').lean();
-            savedPosts = user?.savedPosts?.map((id) => id.toString()) || [];
+            const user = await this.userRepository.findOne({
+                where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
+            savedPosts = user?.savedPosts || [];
         }
+        const postOwner = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'fullName', 'avatar'],
+        });
         return {
-            posts: filteredPosts.map((post) => {
-                const populatedUserId = post.userId?._id || post.userId;
-                const userData = post.userId?._id
-                    ? post.userId
-                    : { _id: populatedUserId, fullName: '', avatar: null };
-                return {
-                    id: post._id.toString(),
-                    userId: populatedUserId.toString(),
-                    user: {
-                        id: userData._id.toString(),
-                        username: userData.fullName || '',
-                        fullName: userData.fullName || '',
-                        avatar: userData.avatar || null,
-                    },
-                    image: post.image,
-                    video: post.video || undefined,
-                    caption: post.caption || '',
-                    likeCount: post.likes?.length || 0,
-                    commentCount: post.commentCount || 0,
-                    isLiked: currentUserId ? post.likes?.some((id) => id.toString() === currentUserId) || false : false,
-                    isSaved: currentUserId ? savedPosts.includes(post._id.toString()) : false,
-                    createdAt: post.createdAt,
-                };
-            }),
+            posts: filteredPosts.map((post) => ({
+                id: post.id,
+                _id: post.id,
+                userId: post.userId,
+                user: {
+                    id: post.userId,
+                    _id: post.userId,
+                    username: postOwner?.fullName || '',
+                    fullName: postOwner?.fullName || '',
+                    avatar: postOwner?.avatar || null,
+                },
+                image: post.image,
+                video: post.video || undefined,
+                caption: post.caption || '',
+                likeCount: post.likes?.length || 0,
+                commentCount: post.commentCount || 0,
+                isLiked: currentUserId ? post.likes?.includes(currentUserId) || false : false,
+                isSaved: currentUserId ? savedPosts.includes(post.id) : false,
+                createdAt: post.createdAt,
+            })),
             pagination: {
                 page,
                 limit: maxLimit,
@@ -349,26 +375,29 @@ let PostsService = class PostsService {
         };
     }
     async getPostById(postId, currentUserId) {
-        if (!mongoose_3.Types.ObjectId.isValid(postId)) {
+        if (!(0, id_util_1.isValidId)(postId)) {
             throw new common_1.BadRequestException('Invalid post ID format');
         }
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null })
-            .populate('userId', 'fullName avatar')
-            .select('userId image video caption likes commentCount createdAt isHidden isPrivate hiddenFromFollowers')
-            .lean();
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post) {
             throw new common_1.NotFoundException('Post not found');
         }
-        const postOwnerId = post.userId?._id?.toString() || post.userId?.toString() || post.userId?.toString();
+        const postOwnerId = post.userId;
         if (currentUserId !== postOwnerId) {
-            const postOwner = await this.userModel.findById(postOwnerId).select('blockedUsers').lean();
+            const postOwner = await this.userRepository.findOne({
+                where: { id: postOwnerId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
             if (!postOwner) {
                 throw new common_1.NotFoundException('Post owner not found');
             }
             if (postOwner.blockedUsers?.includes(currentUserId)) {
                 throw new common_1.ForbiddenException('You are blocked by this user');
             }
-            const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('blockedUsers savedPosts').lean();
+            const currentUser = await this.userRepository.findOne({
+                where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+            });
             if (currentUser?.blockedUsers?.includes(postOwnerId)) {
                 throw new common_1.ForbiddenException('You have blocked this user');
             }
@@ -376,78 +405,73 @@ let PostsService = class PostsService {
                 throw new common_1.NotFoundException('Post not found');
             }
             if (post.isPrivate) {
-                const postOwnerWithFollowers = await this.userModel.findOne({ _id: postOwnerId, deletedAt: null }).select('followers').lean();
-                const isFollowing = postOwnerWithFollowers?.followers?.some((id) => id.toString() === currentUserId) || false;
+                const isFollowing = postOwner.followers?.includes(currentUserId) || false;
                 if (!isFollowing) {
                     throw new common_1.ForbiddenException('This post is only visible to followers');
                 }
-                const hiddenFromFollowers = post.hiddenFromFollowers || [];
-                const isHiddenFrom = hiddenFromFollowers.some((id) => {
-                    const hiddenId = id?.toString ? id.toString() : String(id);
-                    const currentId = currentUserId.toString();
-                    return hiddenId === currentId;
-                });
+                const isHiddenFrom = post.hiddenFromFollowers?.includes(currentUserId) || false;
                 if (isHiddenFrom) {
                     throw new common_1.ForbiddenException('This post is not visible to you');
                 }
             }
         }
-        const currentUser = await this.userModel.findById(currentUserId).select('savedPosts').lean();
-        const savedPosts = currentUser?.savedPosts?.map((id) => id.toString()) || [];
-        const populatedUserId = post.userId?._id || post.userId;
-        const userDataRaw = post.userId?._id
-            ? post.userId
-            : { _id: populatedUserId, fullName: '', avatar: null };
-        const userData = userDataRaw;
+        const currentUser = await this.userRepository.findOne({
+            where: { id: currentUserId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        const savedPosts = currentUser?.savedPosts || [];
+        const author = await this.userRepository.findOne({
+            where: { id: postOwnerId },
+            select: ['id', 'fullName', 'avatar'],
+        });
         return {
-            id: post._id.toString(),
-            userId: populatedUserId.toString(),
+            id: post.id,
+            _id: post.id,
+            userId: post.userId,
             user: {
-                id: userData._id.toString(),
-                username: userData.fullName || '',
-                fullName: userData.fullName || '',
-                avatar: userData.avatar || null,
+                id: post.userId,
+                _id: post.userId,
+                username: author?.fullName || '',
+                fullName: author?.fullName || '',
+                avatar: author?.avatar || null,
             },
             image: post.image,
             video: post.video || undefined,
             caption: post.caption || '',
             likeCount: post.likes?.length || 0,
             commentCount: post.commentCount || 0,
-            isLiked: post.likes?.some((id) => id.toString() === currentUserId) || false,
-            isSaved: savedPosts.includes(post._id.toString()),
+            isLiked: post.likes?.includes(currentUserId) || false,
+            isSaved: savedPosts.includes(post.id),
             isHidden: post.isHidden || false,
             isPrivate: post.isPrivate || false,
-            hiddenFromFollowers: (post.hiddenFromFollowers || []).map((id) => id.toString()),
+            hiddenFromFollowers: post.hiddenFromFollowers || [],
             createdAt: post.createdAt,
         };
     }
     async like(postId, userId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null }).populate('userId');
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        const postOwner = post.userId;
-        if (postOwner.blockedUsers?.includes(userId)) {
+        const postOwner = await this.userRepository.findOne({
+            where: { id: post.userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (postOwner?.blockedUsers?.includes(userId)) {
             throw new common_1.ForbiddenException('You are blocked by this user');
         }
-        const isLiked = post.likes.some((id) => id.toString() === userId);
+        const isLiked = post.likes?.includes(userId) || false;
         if (!isLiked) {
-            await this.postModel.updateOne({ _id: postId }, { $addToSet: { likes: userId } });
-            const postOwnerId = post.userId?._id
-                ? post.userId._id.toString()
-                : post.userId.toString();
-            if (postOwnerId !== userId) {
-                console.log('📬 Like bildirimi oluşturuluyor:', {
-                    postOwnerId,
-                    fromUserId: userId,
-                    postId
-                });
-                await this.notificationModel.create({
-                    userId: postOwnerId,
+            post.likes = [...(post.likes || []), userId];
+            await this.postRepository.save(post);
+            if (post.userId !== userId) {
+                const notification = this.notificationRepository.create({
+                    userId: post.userId,
                     fromUserId: userId,
                     type: 'like',
                     postId: postId,
                 });
-                const cacheKey = `notification:unread:${postOwnerId}`;
+                await this.notificationRepository.save(notification);
+                const cacheKey = `notification:unread:${post.userId}`;
                 const cached = await this.redisService.get(cacheKey);
                 if (cached !== null) {
                     await this.redisService.incr(cacheKey);
@@ -462,12 +486,15 @@ let PostsService = class PostsService {
         return { message: 'Already liked' };
     }
     async unlike(postId, userId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        const isLiked = post.likes.some((id) => id.toString() === userId);
+        const isLiked = post.likes?.includes(userId) || false;
         if (isLiked) {
-            await this.postModel.updateOne({ _id: postId }, { $pull: { likes: userId } });
+            post.likes = (post.likes || []).filter((id) => id !== userId);
+            await this.postRepository.save(post);
             return { message: 'Unliked' };
         }
         return { message: 'Already unliked' };
@@ -475,27 +502,34 @@ let PostsService = class PostsService {
     async getComments(postId, page = 1, limit = 20) {
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
-        const comments = await this.commentModel.find({ postId, deletedAt: null })
-            .populate('userId', 'fullName avatar')
-            .select('userId text createdAt')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(maxLimit)
-            .lean();
+        const comments = await this.commentRepository.find({
+            where: { postId, deletedAt: (0, typeorm_2.IsNull)() },
+            order: { createdAt: 'DESC' },
+            skip,
+            take: maxLimit,
+        });
+        const userIds = Array.from(new Set(comments.map((c) => c.userId)));
+        let userMap = new Map();
+        if (userIds.length > 0) {
+            const users = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(userIds) },
+                select: ['id', 'fullName', 'avatar'],
+            });
+            userMap = new Map(users.map((u) => [u.id, u]));
+        }
         return {
             comments: comments.map((comment) => {
-                const populatedUserId = comment.userId?._id || comment.userId;
-                const userData = comment.userId?._id
-                    ? comment.userId
-                    : { _id: populatedUserId, fullName: '', avatar: null };
+                const u = userMap.get(comment.userId);
                 return {
-                    id: comment._id.toString(),
-                    userId: populatedUserId.toString(),
+                    id: comment.id,
+                    _id: comment.id,
+                    userId: comment.userId,
                     user: {
-                        id: userData._id.toString(),
-                        username: userData.fullName || '',
-                        fullName: userData.fullName || '',
-                        avatar: userData.avatar || null,
+                        id: comment.userId,
+                        _id: comment.userId,
+                        username: u?.fullName || '',
+                        fullName: u?.fullName || '',
+                        avatar: u?.avatar || null,
                     },
                     text: comment.text || '',
                     createdAt: comment.createdAt,
@@ -509,31 +543,30 @@ let PostsService = class PostsService {
         };
     }
     async addComment(postId, userId, text) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null }).populate('userId');
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        const postOwner = post.userId;
-        if (postOwner.blockedUsers?.includes(userId)) {
+        const postOwner = await this.userRepository.findOne({
+            where: { id: post.userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (postOwner?.blockedUsers?.includes(userId)) {
             throw new common_1.ForbiddenException('You are blocked by this user');
         }
-        const comment = await this.commentModel.create({ postId, userId, text });
-        await this.postModel.updateOne({ _id: postId }, { $inc: { commentCount: 1 } });
-        const postOwnerId = post.userId?._id
-            ? post.userId._id.toString()
-            : post.userId.toString();
-        if (postOwnerId !== userId) {
-            console.log('📬 Comment bildirimi oluşturuluyor:', {
-                postOwnerId,
-                fromUserId: userId,
-                postId
-            });
-            await this.notificationModel.create({
-                userId: postOwnerId,
+        const comment = this.commentRepository.create({ postId, userId, text });
+        await this.commentRepository.save(comment);
+        post.commentCount = (post.commentCount || 0) + 1;
+        await this.postRepository.save(post);
+        if (post.userId !== userId) {
+            const notification = this.notificationRepository.create({
+                userId: post.userId,
                 fromUserId: userId,
                 type: 'comment',
                 postId: postId,
             });
-            const cacheKey = `notification:unread:${postOwnerId}`;
+            await this.notificationRepository.save(notification);
+            const cacheKey = `notification:unread:${post.userId}`;
             const cached = await this.redisService.get(cacheKey);
             if (cached !== null) {
                 await this.redisService.incr(cacheKey);
@@ -543,44 +576,59 @@ let PostsService = class PostsService {
                 await this.redisService.set(cacheKey, '1', 60);
             }
         }
-        const populatedComment = await comment.populate('userId', 'fullName avatar');
-        const populatedUserId = populatedComment.userId._id || populatedComment.userId;
-        const userData = typeof populatedComment.userId === 'object' && populatedComment.userId._id
-            ? populatedComment.userId
-            : { _id: populatedUserId, fullName: '', avatar: null };
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'fullName', 'avatar'],
+        });
         return {
-            id: populatedComment._id.toString(),
-            userId: populatedUserId.toString(),
+            id: comment.id,
+            _id: comment.id,
+            userId,
             user: {
-                id: userData._id.toString(),
-                username: userData.fullName || '',
-                fullName: userData.fullName || '',
-                avatar: userData.avatar || null,
+                id: userId,
+                _id: userId,
+                username: user?.fullName || '',
+                fullName: user?.fullName || '',
+                avatar: user?.avatar || null,
             },
-            text: populatedComment.text || '',
-            createdAt: populatedComment.createdAt,
+            text: comment.text,
+            createdAt: comment.createdAt,
         };
     }
     async savePost(postId, userId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        await this.userModel.updateOne({ _id: userId }, { $addToSet: { savedPosts: postId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!user)
+            throw new common_1.NotFoundException('User not found');
+        if (!user.savedPosts?.includes(postId)) {
+            user.savedPosts = [...(user.savedPosts || []), postId];
+            await this.userRepository.save(user);
+        }
         return { message: 'Post saved' };
     }
     async unsavePost(postId, userId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
-        if (!post)
-            throw new common_1.NotFoundException('Post not found');
-        await this.userModel.updateOne({ _id: userId }, { $pull: { savedPosts: postId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!user)
+            throw new common_1.NotFoundException('User not found');
+        user.savedPosts = (user.savedPosts || []).filter((id) => id !== postId);
+        await this.userRepository.save(user);
         return { message: 'Post unsaved' };
     }
     async getSavedPosts(userId, page = 1, limit = 20) {
-        const user = await this.userModel.findOne({ _id: userId, deletedAt: null }).select('savedPosts blockedUsers').lean();
-        if (!user) {
+        const user = await this.userRepository.findOne({
+            where: { id: userId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!user)
             throw new common_1.NotFoundException('User not found');
-        }
-        const savedPostIds = user.savedPosts?.map((id) => id.toString()) || [];
+        const savedPostIds = user.savedPosts || [];
         if (savedPostIds.length === 0) {
             return {
                 posts: [],
@@ -595,59 +643,55 @@ let PostsService = class PostsService {
         }
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
-        const posts = await this.postModel
-            .find({
-            _id: { $in: savedPostIds },
-            deletedAt: null,
-        })
-            .populate('userId', 'fullName avatar')
-            .select('userId image video caption likes commentCount createdAt isHidden isPrivate hiddenFromFollowers')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(maxLimit)
-            .lean();
-        const blockedUsers = user.blockedUsers?.map((id) => id.toString()) || [];
-        let filteredPosts = posts.filter((post) => {
-            const postOwnerId = post.userId?._id?.toString() || post.userId?.toString();
-            return !blockedUsers.includes(postOwnerId);
+        const posts = await this.postRepository.find({
+            where: { id: (0, typeorm_2.In)(savedPostIds), deletedAt: (0, typeorm_2.IsNull)() },
+            order: { createdAt: 'DESC' },
+            skip,
+            take: maxLimit,
         });
-        const postOwnerIds = filteredPosts.map((post) => {
-            return post.userId?._id?.toString() || post.userId?.toString();
-        }).filter(Boolean);
+        const blockedUsers = user.blockedUsers || [];
+        let filteredPosts = posts.filter((p) => !blockedUsers.includes(p.userId));
+        const postOwnerIds = Array.from(new Set(filteredPosts.map((p) => p.userId)));
+        let authorMap = new Map();
         if (postOwnerIds.length > 0) {
-            const usersWhoBlockedMe = await this.userModel.find({
-                _id: { $in: postOwnerIds },
-                blockedUsers: userId,
-                deletedAt: null,
-            }).select('_id').lean();
-            const blockedByUserIds = usersWhoBlockedMe.map((u) => u._id.toString());
-            filteredPosts = filteredPosts.filter((post) => {
-                const postOwnerId = post.userId?._id?.toString() || post.userId?.toString();
-                return !blockedByUserIds.includes(postOwnerId);
+            const usersWhoBlockedMe = await this.userRepository
+                .createQueryBuilder('u')
+                .where('u.id IN (:...ids)', { ids: postOwnerIds })
+                .andWhere(':userId = ANY(u.blockedUsers)', { userId })
+                .andWhere('u.deletedAt IS NULL')
+                .select(['u.id'])
+                .getMany();
+            const blockedByUserIds = usersWhoBlockedMe.map((u) => u.id);
+            filteredPosts = filteredPosts.filter((p) => !blockedByUserIds.includes(p.userId));
+            const authors = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(postOwnerIds) },
+                select: ['id', 'fullName', 'avatar'],
             });
+            authorMap = new Map(authors.map((a) => [a.id, a]));
         }
         const formattedPosts = filteredPosts.map((post) => {
-            const populatedUserId = post.userId?._id || post.userId;
-            const userData = post.userId;
+            const author = authorMap.get(post.userId);
             return {
-                id: post._id.toString(),
-                userId: populatedUserId.toString(),
+                id: post.id,
+                _id: post.id,
+                userId: post.userId,
                 user: {
-                    id: userData?._id?.toString() || userData?.toString() || '',
-                    username: userData?.fullName || '',
-                    fullName: userData?.fullName || '',
-                    avatar: userData?.avatar || null,
+                    id: post.userId,
+                    _id: post.userId,
+                    username: author?.fullName || '',
+                    fullName: author?.fullName || '',
+                    avatar: author?.avatar || null,
                 },
                 image: post.image,
                 video: post.video || undefined,
                 caption: post.caption || '',
                 likeCount: post.likes?.length || 0,
                 commentCount: post.commentCount || 0,
-                isLiked: post.likes?.some((id) => id.toString() === userId) || false,
+                isLiked: post.likes?.includes(userId) || false,
                 isSaved: true,
                 isHidden: post.isHidden || false,
                 isPrivate: post.isPrivate || false,
-                hiddenFromFollowers: (post.hiddenFromFollowers || []).map((id) => id.toString()),
+                hiddenFromFollowers: post.hiddenFromFollowers || [],
                 createdAt: post.createdAt,
             };
         });
@@ -665,77 +709,74 @@ let PostsService = class PostsService {
         };
     }
     async hidePost(postId, userId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        if (post.userId.toString() !== userId) {
+        if (post.userId !== userId) {
             throw new common_1.ForbiddenException('You can only hide your own posts');
         }
         post.isHidden = true;
-        await post.save();
+        await this.postRepository.save(post);
         return { message: 'Post hidden successfully' };
     }
     async unhidePost(postId, userId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        if (post.userId.toString() !== userId) {
+        if (post.userId !== userId) {
             throw new common_1.ForbiddenException('You can only unhide your own posts');
         }
         post.isHidden = false;
-        await post.save();
+        await this.postRepository.save(post);
         return { message: 'Post unhidden successfully' };
     }
     async deletePost(postId, userId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        if (post.userId.toString() !== userId) {
+        if (post.userId !== userId) {
             throw new common_1.ForbiddenException('You can only delete your own posts');
         }
-        await this.commentModel.updateMany({ postId, deletedAt: null }, { $set: { deletedAt: new Date() } });
-        await this.notificationModel.updateMany({ postId, deletedAt: null }, { $set: { deletedAt: new Date() } });
-        await this.userModel.updateMany({ savedPosts: postId }, { $pull: { savedPosts: postId } });
-        await this.postModel.updateOne({ _id: postId }, { $set: { deletedAt: new Date() } });
+        const deletedAt = new Date();
+        await this.commentRepository.update({ postId, deletedAt: (0, typeorm_2.IsNull)() }, { deletedAt });
+        await this.notificationRepository.update({ postId, deletedAt: (0, typeorm_2.IsNull)() }, { deletedAt });
+        post.deletedAt = deletedAt;
+        await this.postRepository.save(post);
         await this.invalidateFeedCache(userId);
         return { message: 'Post deleted successfully' };
     }
     async updateVisibility(postId, userId, payload) {
-        console.log('📥 Backend updateVisibility called:', {
-            postId,
-            userId,
-            payload,
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
         });
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
-        if (post.userId.toString() !== userId) {
+        if (post.userId !== userId) {
             throw new common_1.ForbiddenException('You can only update your own posts');
         }
-        const update = {};
         if (typeof payload.isPrivate === 'boolean')
-            update.isPrivate = payload.isPrivate;
+            post.isPrivate = payload.isPrivate;
         if (typeof payload.isHidden === 'boolean')
-            update.isHidden = payload.isHidden;
+            post.isHidden = payload.isHidden;
         if (Array.isArray(payload.hiddenFromFollowers))
-            update.hiddenFromFollowers = payload.hiddenFromFollowers;
-        console.log('💾 Updating post with:', update);
-        await this.postModel.updateOne({ _id: postId, deletedAt: null }, { $set: update });
-        const updatedPost = await this.postModel.findOne({ _id: postId, deletedAt: null }).lean();
-        if (updatedPost) {
-            console.log('✅ Post updated successfully:', {
-                isPrivate: updatedPost.isPrivate,
-                hiddenFromFollowers: updatedPost.hiddenFromFollowers,
-            });
-        }
-        return { message: 'Visibility updated', update };
+            post.hiddenFromFollowers = payload.hiddenFromFollowers;
+        await this.postRepository.save(post);
+        return { message: 'Visibility updated', update: payload };
     }
     async sharePost(postId, userId, receiverId) {
-        const post = await this.postModel.findOne({ _id: postId, deletedAt: null });
+        const post = await this.postRepository.findOne({
+            where: { id: postId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
         if (!post)
             throw new common_1.NotFoundException('Post not found');
         return {
-            postId: post._id.toString(),
+            postId: post.id,
             image: post.image,
             caption: post.caption,
         };
@@ -744,16 +785,16 @@ let PostsService = class PostsService {
 exports.PostsService = PostsService;
 exports.PostsService = PostsService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(post_entity_1.Post.name)),
-    __param(1, (0, mongoose_1.InjectModel)(comment_entity_1.Comment.name)),
-    __param(2, (0, mongoose_1.InjectModel)(notification_entity_1.Notification.name)),
-    __param(3, (0, mongoose_1.InjectModel)(user_entity_1.User.name)),
-    __param(4, (0, mongoose_1.InjectModel)(ad_entity_1.Ad.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
+    __param(0, (0, typeorm_1.InjectRepository)(post_entity_1.Post)),
+    __param(1, (0, typeorm_1.InjectRepository)(comment_entity_1.Comment)),
+    __param(2, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
+    __param(3, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(4, (0, typeorm_1.InjectRepository)(ad_entity_1.Ad)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
         redis_service_1.RedisService])
 ], PostsService);
 //# sourceMappingURL=posts.service.js.map

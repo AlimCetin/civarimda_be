@@ -21,7 +21,7 @@ export class WebhookTransport extends Transport {
     
     this.webhookUrl = opts.webhookUrl || '';
     this.webhookType = opts.webhookType || 'discord';
-    this.appName = opts.appName || 'Tosyam Backend';
+    this.appName = opts.appName || 'Civarımda Backend';
 
     // Webhook URL yoksa transport'u disable et
     if (!this.webhookUrl) {

@@ -14,107 +14,107 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MessagesService = void 0;
 const common_1 = require("@nestjs/common");
-const mongoose_1 = require("@nestjs/mongoose");
-const mongoose_2 = require("mongoose");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
 const conversation_entity_1 = require("../entities/conversation.entity");
 const message_entity_1 = require("../entities/message.entity");
 const notification_entity_1 = require("../entities/notification.entity");
+const user_entity_1 = require("../entities/user.entity");
 const redis_service_1 = require("../common/redis/redis.service");
 let MessagesService = class MessagesService {
-    conversationModel;
-    messageModel;
-    notificationModel;
+    conversationRepository;
+    messageRepository;
+    notificationRepository;
+    userRepository;
     redisService;
-    constructor(conversationModel, messageModel, notificationModel, redisService) {
-        this.conversationModel = conversationModel;
-        this.messageModel = messageModel;
-        this.notificationModel = notificationModel;
+    constructor(conversationRepository, messageRepository, notificationRepository, userRepository, redisService) {
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
+        this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
         this.redisService = redisService;
     }
     async getConversations(userId, page = 1, limit = 20) {
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
-        const conversations = await this.conversationModel.find({
-            participants: userId,
-            deletedAt: null,
-        })
-            .populate({
-            path: 'participants',
-            select: 'fullName avatar',
-            match: { deletedAt: null },
-        })
-            .populate({
-            path: 'lastMessage',
-            match: { deletedAt: null },
-        })
-            .select('participants lastMessage lastMessageAt createdAt')
-            .sort({ lastMessageAt: -1 })
+        const conversations = await this.conversationRepository
+            .createQueryBuilder('c')
+            .where(':userId = ANY(c.participants)', { userId })
+            .andWhere('c.deletedAt IS NULL')
+            .orderBy('c.lastMessageAt', 'DESC')
             .skip(skip)
-            .limit(maxLimit)
-            .lean();
-        const conversationIds = conversations.map((conv) => conv._id.toString());
-        const userIdStr = String(userId).trim();
-        const unreadCountsResult = await this.messageModel.aggregate([
-            {
-                $match: {
-                    conversationId: { $in: conversationIds },
-                    read: false,
-                    deletedAt: null,
-                },
-            },
-            {
-                $addFields: {
-                    senderIdStr: { $toString: '$senderId' },
-                },
-            },
-            {
-                $match: {
-                    senderIdStr: { $ne: userIdStr },
-                },
-            },
-            {
-                $group: {
-                    _id: '$conversationId',
-                    count: { $sum: 1 },
-                },
-            },
-        ]);
+            .take(maxLimit)
+            .getMany();
+        const conversationIds = conversations.map((c) => c.id);
         const unreadCountsMap = {};
-        unreadCountsResult.forEach((item) => {
-            unreadCountsMap[item._id] = item.count || 0;
-        });
+        if (conversationIds.length > 0) {
+            const unreadMessages = await this.messageRepository
+                .createQueryBuilder('m')
+                .where('m.conversationId IN (:...conversationIds)', { conversationIds })
+                .andWhere('m.read = false')
+                .andWhere('m.senderId != :userId', { userId })
+                .andWhere('m.deletedAt IS NULL')
+                .select(['m.conversationId'])
+                .getMany();
+            unreadMessages.forEach((m) => {
+                unreadCountsMap[m.conversationId] = (unreadCountsMap[m.conversationId] || 0) + 1;
+            });
+        }
+        const allParticipantIds = Array.from(new Set(conversations.flatMap((c) => c.participants || []).filter(Boolean)));
+        let participantMap = new Map();
+        if (allParticipantIds.length > 0) {
+            const users = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(allParticipantIds), deletedAt: (0, typeorm_2.IsNull)() },
+                select: ['id', 'fullName', 'avatar'],
+            });
+            participantMap = new Map(users.map((u) => [u.id, u]));
+        }
+        const lastMessageIds = conversations.map((c) => c.lastMessage).filter(Boolean);
+        let messageMap = new Map();
+        if (lastMessageIds.length > 0) {
+            const messages = await this.messageRepository.find({
+                where: { id: (0, typeorm_2.In)(lastMessageIds), deletedAt: (0, typeorm_2.IsNull)() },
+            });
+            messageMap = new Map(messages.map((m) => [m.id, m]));
+        }
         const filteredConversations = conversations
             .map((conv) => {
-            const validParticipants = (conv.participants || []).filter((p) => p !== null);
-            if (validParticipants.length === 0) {
-                return null;
-            }
-            const formattedParticipants = validParticipants.map((p) => ({
-                id: p._id?.toString() || p.toString(),
-                fullName: p.fullName || '',
-                username: p.fullName || '',
-                avatar: p.avatar || null,
-            }));
-            let formattedLastMessage = null;
-            if (conv.lastMessage && conv.lastMessage !== null) {
-                formattedLastMessage = {
-                    id: conv.lastMessage._id?.toString() || conv.lastMessage.toString(),
-                    text: conv.lastMessage.text || '',
-                    createdAt: conv.lastMessage.createdAt || conv.lastMessageAt,
+            const validParticipants = (conv.participants || []).filter((id) => id !== userId);
+            const formattedParticipants = validParticipants.map((id) => {
+                const u = participantMap.get(id);
+                return {
+                    id,
+                    _id: id,
+                    fullName: u?.fullName || '',
+                    username: u?.fullName || '',
+                    avatar: u?.avatar || null,
                 };
+            });
+            let formattedLastMessage = null;
+            if (conv.lastMessage) {
+                const msg = messageMap.get(conv.lastMessage);
+                if (msg) {
+                    formattedLastMessage = {
+                        id: msg.id,
+                        _id: msg.id,
+                        text: msg.text || '',
+                        createdAt: msg.createdAt || conv.lastMessageAt,
+                    };
+                }
             }
-            const unreadCount = unreadCountsMap[conv._id.toString()] || 0;
+            const unreadCount = unreadCountsMap[conv.id] || 0;
             return {
-                id: conv._id.toString(),
+                id: conv.id,
+                _id: conv.id,
                 participants: formattedParticipants,
                 lastMessage: formattedLastMessage,
                 lastMessageAt: conv.lastMessageAt || conv.createdAt,
                 updatedAt: conv.lastMessageAt || conv.createdAt,
                 createdAt: conv.createdAt,
-                unreadCount: unreadCount,
+                unreadCount,
             };
         })
-            .filter((conv) => conv !== null);
+            .filter((conv) => conv.participants.length > 0);
         return {
             conversations: filteredConversations,
             pagination: {
@@ -125,46 +125,46 @@ let MessagesService = class MessagesService {
         };
     }
     async getMessages(conversationId, userId, page = 1, limit = 20) {
-        const conversation = await this.conversationModel.findOne({
-            _id: conversationId,
-            deletedAt: null,
-        }).lean();
-        if (!conversation || !conversation.participants.includes(userId)) {
+        const conversation = await this.conversationRepository.findOne({
+            where: { id: conversationId, deletedAt: (0, typeorm_2.IsNull)() },
+        });
+        if (!conversation || !conversation.participants?.includes(userId)) {
             throw new common_1.NotFoundException('Conversation not found');
         }
         const skip = (page - 1) * limit;
         const maxLimit = Math.min(limit, 50);
-        const messages = await this.messageModel.find({
-            conversationId,
-            deletedAt: null,
-        })
-            .populate({
-            path: 'senderId',
-            select: 'fullName avatar',
-            match: { deletedAt: null },
-        })
-            .select('senderId text read createdAt')
-            .sort({ createdAt: 1 })
-            .skip(skip)
-            .limit(maxLimit)
-            .lean();
-        const validMessages = messages
-            .filter((msg) => msg.senderId !== null)
-            .map((msg) => {
-            const sender = msg.senderId;
+        const messages = await this.messageRepository.find({
+            where: { conversationId, deletedAt: (0, typeorm_2.IsNull)() },
+            order: { createdAt: 'ASC' },
+            skip,
+            take: maxLimit,
+        });
+        const senderIds = Array.from(new Set(messages.map((m) => m.senderId)));
+        let senderMap = new Map();
+        if (senderIds.length > 0) {
+            const senders = await this.userRepository.find({
+                where: { id: (0, typeorm_2.In)(senderIds), deletedAt: (0, typeorm_2.IsNull)() },
+                select: ['id', 'fullName', 'avatar'],
+            });
+            senderMap = new Map(senders.map((s) => [s.id, s]));
+        }
+        const validMessages = messages.map((msg) => {
+            const sender = senderMap.get(msg.senderId);
             return {
-                id: msg._id.toString(),
-                conversationId: msg.conversationId || conversationId,
-                senderId: sender._id?.toString() || sender.toString(),
+                id: msg.id,
+                _id: msg.id,
+                conversationId: msg.conversationId,
+                senderId: msg.senderId,
                 receiverId: '',
                 text: msg.text || '',
                 read: msg.read || false,
-                createdAt: msg.createdAt || new Date(),
+                createdAt: msg.createdAt,
                 sender: {
-                    id: sender._id?.toString() || sender.toString(),
-                    fullName: sender.fullName || '',
-                    username: sender.fullName || '',
-                    avatar: sender.avatar || null,
+                    id: msg.senderId,
+                    _id: msg.senderId,
+                    fullName: sender?.fullName || '',
+                    username: sender?.fullName || '',
+                    avatar: sender?.avatar || null,
                 },
             };
         });
@@ -178,31 +178,37 @@ let MessagesService = class MessagesService {
         };
     }
     async sendMessage(senderId, receiverId, text) {
-        let conversation = await this.conversationModel.findOne({
-            participants: { $all: [senderId, receiverId] },
-            deletedAt: null,
-        });
+        let conversation = await this.conversationRepository
+            .createQueryBuilder('c')
+            .where(':senderId = ANY(c.participants) AND :receiverId = ANY(c.participants)', {
+            senderId,
+            receiverId,
+        })
+            .andWhere('c.deletedAt IS NULL')
+            .getOne();
         if (!conversation) {
-            conversation = await this.conversationModel.create({
+            conversation = this.conversationRepository.create({
                 participants: [senderId, receiverId],
+                lastMessageAt: new Date(),
             });
+            await this.conversationRepository.save(conversation);
         }
-        const message = await this.messageModel.create({
-            conversationId: conversation._id.toString(),
+        const message = this.messageRepository.create({
+            conversationId: conversation.id,
             senderId,
             text,
+            read: false,
         });
-        await this.conversationModel.updateOne({ _id: conversation._id }, { lastMessage: message._id, lastMessageAt: new Date() });
-        console.log('📬 Mesaj bildirimi oluşturuluyor:', {
-            receiverId,
-            fromUserId: senderId,
-            conversationId: conversation._id.toString()
-        });
-        await this.notificationModel.create({
+        await this.messageRepository.save(message);
+        conversation.lastMessage = message.id;
+        conversation.lastMessageAt = new Date();
+        await this.conversationRepository.save(conversation);
+        const notification = this.notificationRepository.create({
             userId: receiverId,
             fromUserId: senderId,
             type: 'message',
         });
+        await this.notificationRepository.save(notification);
         const cacheKey = `notification:unread:${receiverId}`;
         const cached = await this.redisService.get(cacheKey);
         if (cached !== null) {
@@ -213,19 +219,22 @@ let MessagesService = class MessagesService {
             await this.redisService.set(cacheKey, '1', 60);
         }
         await this.redisService.del(`messages:unread:${receiverId}`);
-        const populatedMessage = await message.populate('senderId', 'email fullName avatar');
-        const msgObj = populatedMessage.toObject();
-        const sender = msgObj.senderId;
+        const sender = await this.userRepository.findOne({
+            where: { id: senderId },
+            select: ['id', 'fullName', 'avatar'],
+        });
         return {
-            id: msgObj._id.toString(),
-            conversationId: conversation._id.toString(),
-            senderId: sender?._id?.toString() || sender?.toString() || senderId,
-            receiverId: receiverId,
-            text: msgObj.text || text,
-            read: msgObj.read || false,
-            createdAt: (msgObj.createdAt || new Date()),
+            id: message.id,
+            _id: message.id,
+            conversationId: conversation.id,
+            senderId,
+            receiverId,
+            text: message.text,
+            read: message.read,
+            createdAt: message.createdAt,
             sender: {
-                id: sender?._id?.toString() || sender?.toString() || senderId,
+                id: senderId,
+                _id: senderId,
                 fullName: sender?.fullName || '',
                 username: sender?.fullName || '',
                 avatar: sender?.avatar || null,
@@ -233,31 +242,17 @@ let MessagesService = class MessagesService {
         };
     }
     async markAsRead(conversationId, userId) {
-        const userIdStr = String(userId).trim();
-        const unreadMessages = await this.messageModel.find({
-            conversationId,
-            read: false,
-            deletedAt: null,
-        }).select('senderId').lean();
-        const messagesToMark = unreadMessages.filter((msg) => {
-            const senderIdStr = String(msg.senderId).trim();
-            return senderIdStr !== userIdStr;
-        });
-        if (messagesToMark.length === 0) {
-            return { modifiedCount: 0 };
-        }
-        const messageIds = messagesToMark.map((msg) => msg._id);
-        const result = await this.messageModel.updateMany({
-            _id: { $in: messageIds },
-            read: false,
-        }, { read: true });
-        console.log('✅ Mesajlar okundu işaretlendi:', {
-            conversationId,
-            userId,
-            modifiedCount: result.modifiedCount,
-        });
+        const result = await this.messageRepository
+            .createQueryBuilder()
+            .update(message_entity_1.Message)
+            .set({ read: true })
+            .where('conversationId = :conversationId', { conversationId })
+            .andWhere('senderId != :userId', { userId })
+            .andWhere('read = false')
+            .andWhere('deletedAt IS NULL')
+            .execute();
         await this.redisService.del(`messages:unread:${userId}`);
-        return { modifiedCount: result.modifiedCount };
+        return { modifiedCount: result.affected || 0 };
     }
     async getUnreadMessagesCount(userId) {
         const cacheKey = `messages:unread:${userId}`;
@@ -265,29 +260,27 @@ let MessagesService = class MessagesService {
         if (cached !== null) {
             return parseInt(cached);
         }
-        const userIdStr = String(userId).trim();
-        const conversations = await this.conversationModel.find({
-            participants: userIdStr,
-            deletedAt: null,
-        }).select('_id').lean();
-        const conversationIds = conversations.map((c) => c._id.toString());
+        const conversations = await this.conversationRepository
+            .createQueryBuilder('c')
+            .where(':userId = ANY(c.participants)', { userId })
+            .andWhere('c.deletedAt IS NULL')
+            .select(['c.id'])
+            .getMany();
+        const conversationIds = conversations.map((c) => c.id);
         if (conversationIds.length === 0) {
             await this.redisService.set(cacheKey, '0', 60);
             return 0;
         }
-        const unreadMessages = await this.messageModel.find({
-            conversationId: { $in: conversationIds },
-            read: false,
-            deletedAt: null,
-        }).select('conversationId senderId').lean();
-        const conversationsWithUnread = new Set();
-        unreadMessages.forEach((msg) => {
-            const senderIdStr = String(msg.senderId).trim();
-            if (senderIdStr !== userIdStr) {
-                conversationsWithUnread.add(String(msg.conversationId));
-            }
-        });
-        const count = conversationsWithUnread.size;
+        const unreadMessages = await this.messageRepository
+            .createQueryBuilder('m')
+            .where('m.conversationId IN (:...conversationIds)', { conversationIds })
+            .andWhere('m.read = false')
+            .andWhere('m.senderId != :userId', { userId })
+            .andWhere('m.deletedAt IS NULL')
+            .select(['m.conversationId'])
+            .getMany();
+        const uniqueConversations = new Set(unreadMessages.map((m) => m.conversationId));
+        const count = uniqueConversations.size;
         await this.redisService.set(cacheKey, count.toString(), 60);
         return count;
     }
@@ -295,12 +288,14 @@ let MessagesService = class MessagesService {
 exports.MessagesService = MessagesService;
 exports.MessagesService = MessagesService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(conversation_entity_1.Conversation.name)),
-    __param(1, (0, mongoose_1.InjectModel)(message_entity_1.Message.name)),
-    __param(2, (0, mongoose_1.InjectModel)(notification_entity_1.Notification.name)),
-    __metadata("design:paramtypes", [mongoose_2.Model,
-        mongoose_2.Model,
-        mongoose_2.Model,
+    __param(0, (0, typeorm_1.InjectRepository)(conversation_entity_1.Conversation)),
+    __param(1, (0, typeorm_1.InjectRepository)(message_entity_1.Message)),
+    __param(2, (0, typeorm_1.InjectRepository)(notification_entity_1.Notification)),
+    __param(3, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
         redis_service_1.RedisService])
 ], MessagesService);
 //# sourceMappingURL=messages.service.js.map

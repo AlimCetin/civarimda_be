@@ -75,13 +75,13 @@ let AppLoggerService = class AppLoggerService {
                 webhookUrl,
                 webhookType,
                 level: 'warn',
-                appName: 'Tosyam Backend',
+                appName: 'Civarımda Backend',
             }));
         }
         this.logger = winston.createLogger({
             level: isProduction ? 'info' : 'debug',
             format: winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), winston.format.errors({ stack: true }), winston.format.splat(), winston.format.json()),
-            defaultMeta: { service: 'tosyam-backend' },
+            defaultMeta: { service: 'civarimda-backend' },
             transports,
         });
     }

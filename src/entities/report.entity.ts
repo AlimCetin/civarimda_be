@@ -1,5 +1,14 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  BeforeInsert,
+  AfterLoad,
+} from 'typeorm';
+import { randomUUID } from 'crypto';
 
 export enum ReportType {
   USER = 'user',
@@ -32,47 +41,74 @@ export enum ReportPriority {
   URGENT = 'urgent',
 }
 
-@Schema({ timestamps: true })
-export class Report extends Document {
-  @Prop({ required: true, type: String, ref: 'User' })
-  reporterId: string; // Şikayet eden kullanıcı
+@Entity('reports')
+@Index(['status', 'priority', 'createdAt'])
+@Index(['reportedId', 'type'])
+@Index(['reporterId'])
+@Index(['reviewedBy'])
+export class Report {
+  @PrimaryColumn('varchar', { length: 64 })
+  id: string;
 
-  @Prop({ required: true, type: String })
-  reportedId: string; // Şikayet edilen (user, post, comment, message id)
+  get _id(): string {
+    return this.id;
+  }
 
-  @Prop({ required: true, enum: ReportType })
+  @Column({ type: 'varchar', length: 64 })
+  reporterId: string;
+
+  @Column({ type: 'varchar', length: 64 })
+  reportedId: string;
+
+  @Column({ type: 'varchar', length: 50 })
   type: ReportType;
 
-  @Prop({ required: true, enum: ReportReason })
+  @Column({ type: 'varchar', length: 50 })
   reason: ReportReason;
 
-  @Prop({ default: '' })
-  description: string; // Detaylı açıklama
+  @Column({ type: 'text', default: '' })
+  description: string;
 
-  @Prop({ enum: ReportStatus, default: ReportStatus.PENDING })
+  @Column({ type: 'varchar', length: 50, default: ReportStatus.PENDING })
   status: ReportStatus;
 
-  @Prop({ enum: ReportPriority, default: ReportPriority.MEDIUM })
+  @Column({ type: 'varchar', length: 50, default: ReportPriority.MEDIUM })
   priority: ReportPriority;
 
-  @Prop({ type: String, ref: 'User', default: null })
-  reviewedBy: string; // İnceleyen admin/moderator
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  reviewedBy: string | null;
 
-  @Prop({ default: null })
-  reviewedAt: Date;
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
+  reviewedAt: Date | null;
 
-  @Prop({ default: '' })
-  adminNote: string; // Admin'in notu
+  @Column({ type: 'text', default: '' })
+  adminNote: string;
 
-  @Prop({ default: 1 })
-  reportCount: number; // Aynı içerik için kaç kez şikayet edilmiş
+  @Column({ type: 'int', default: 1 })
+  reportCount: number;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updatedAt: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = randomUUID();
+    }
+  }
+
+  @AfterLoad()
+  populateVirtuals() {
+    (this as any)._id = this.id;
+  }
+
+  toObject() {
+    return {
+      ...this,
+      _id: this.id,
+    };
+  }
 }
-
-export const ReportSchema = SchemaFactory.createForClass(Report);
-
-// Indexes for performance
-ReportSchema.index({ status: 1, priority: -1, createdAt: -1 });
-ReportSchema.index({ reportedId: 1, type: 1 });
-ReportSchema.index({ reporterId: 1 });
-ReportSchema.index({ reviewedBy: 1 });
-

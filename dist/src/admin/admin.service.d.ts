@@ -1,13 +1,14 @@
-import { Model, Types } from 'mongoose';
+import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { ActivityLog, ActivityType } from '../entities/activity-log.entity';
+import { Post } from '../entities/post.entity';
 import { BanUserDto } from './dto/ban-user.dto';
 import { ChangeRoleDto } from './dto/change-role.dto';
 export declare class AdminService {
-    private userModel;
-    private activityLogModel;
-    private postModel;
-    constructor(userModel: Model<User>, activityLogModel: Model<ActivityLog>, postModel: Model<any>);
+    private userRepository;
+    private activityLogRepository;
+    private postRepository;
+    constructor(userRepository: Repository<User>, activityLogRepository: Repository<ActivityLog>, postRepository: Repository<Post>);
     getDashboardStatistics(): Promise<{
         totalUsers: number;
         newUsersToday: number;
@@ -17,18 +18,19 @@ export declare class AdminService {
     }>;
     getUsers(page?: number, limit?: number, search?: string, role?: string, isBanned?: boolean): Promise<{
         users: {
-            id: any;
-            fullName: any;
-            avatar: any;
-            bio: any;
-            role: any;
-            warningCount: any;
-            bannedUntil: any;
-            isPermanentlyBanned: any;
-            followerCount: any;
-            followingCount: any;
-            isVerified: any;
-            createdAt: any;
+            id: string;
+            _id: string;
+            fullName: string;
+            avatar: string | null;
+            bio: string;
+            role: string;
+            warningCount: number;
+            bannedUntil: Date | null;
+            isPermanentlyBanned: boolean;
+            followerCount: number;
+            followingCount: number;
+            isVerified: boolean;
+            createdAt: Date;
         }[];
         pagination: {
             page: number;
@@ -39,8 +41,9 @@ export declare class AdminService {
     }>;
     getUserById(userId: string): Promise<{
         id: string;
+        _id: string;
         fullName: string;
-        avatar: string;
+        avatar: string | null;
         bio: string;
         role: string;
         warningCount: number;
@@ -51,59 +54,54 @@ export declare class AdminService {
         postCount: number;
         isVerified: boolean;
         activityLogs: {
-            id: any;
-            adminId: any;
-            activityType: any;
-            targetUserId: any;
-            targetPostId: any;
-            description: any;
-            metadata: any;
+            id: string;
+            adminId: string;
+            activityType: ActivityType;
+            targetUserId: string | null;
+            targetPostId: string | null;
+            description: string;
+            metadata: Record<string, any>;
             admin: {
-                id: any;
-                fullName: any;
-                avatar: any;
+                id: string;
+                fullName: string;
+                avatar: string | null;
             } | null;
-            createdAt: any;
+            createdAt: Date;
         }[];
-        createdAt: any;
+        createdAt: Date;
     }>;
-    banUser(targetUserId: string, adminId: string, banUserDto: BanUserDto): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    unbanUser(targetUserId: string, adminId: string): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    warnUser(targetUserId: string, adminId: string, reason?: string): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    changeUserRole(targetUserId: string, adminId: string, changeRoleDto: ChangeRoleDto): Promise<import("mongoose").Document<unknown, {}, User, {}, import("mongoose").DefaultSchemaOptions> & User & Required<{
-        _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
+    banUser(targetUserId: string, adminId: string, banUserDto: BanUserDto): Promise<User>;
+    unbanUser(targetUserId: string, adminId: string): Promise<User>;
+    warnUser(targetUserId: string, adminId: string, reason?: string): Promise<User>;
+    changeUserRole(targetUserId: string, adminId: string, changeRoleDto: ChangeRoleDto): Promise<User>;
     deletePost(postId: string, adminId: string, reason?: string): Promise<{
         success: boolean;
     }>;
     getActivityLogs(page?: number, limit?: number, adminId?: string, activityType?: ActivityType): Promise<{
-        logs: (ActivityLog & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        })[];
+        logs: {
+            id: string;
+            _id: string;
+            adminId: string;
+            activityType: ActivityType;
+            targetUserId: string | null;
+            targetPostId: string | null;
+            description: string;
+            metadata: Record<string, any>;
+            admin: {
+                id: string;
+                _id: string;
+                fullName: string;
+                avatar: string | null;
+                role: string;
+            } | null;
+            targetUser: {
+                id: string;
+                _id: string;
+                fullName: string;
+                avatar: string | null;
+            } | null;
+            createdAt: Date;
+        }[];
         pagination: {
             page: number;
             limit: number;

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In, IsNull, ILike } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
 import { Post } from '../entities/post.entity';
@@ -14,58 +14,50 @@ import { RedisService } from '../common/redis/redis.service';
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(UserCredentials.name) private credentialsModel: Model<UserCredentials>,
-    @InjectModel(Post.name) private postModel: Model<Post>,
-    @InjectModel(Comment.name) private commentModel: Model<Comment>,
-    @InjectModel(Conversation.name) private conversationModel: Model<Conversation>,
-    @InjectModel(Message.name) private messageModel: Model<Message>,
-    @InjectModel(Notification.name) private notificationModel: Model<Notification>,
+    @InjectRepository(User) private userRepository: Repository<User>,
+    @InjectRepository(UserCredentials) private credentialsRepository: Repository<UserCredentials>,
+    @InjectRepository(Post) private postRepository: Repository<Post>,
+    @InjectRepository(Comment) private commentRepository: Repository<Comment>,
+    @InjectRepository(Conversation) private conversationRepository: Repository<Conversation>,
+    @InjectRepository(Message) private messageRepository: Repository<Message>,
+    @InjectRepository(Notification) private notificationRepository: Repository<Notification>,
     private readonly redisService: RedisService,
   ) {}
 
   async findById(userId: string, currentUserId?: string) {
-    // Cache key: user:userId
     const cacheKey = `user:${userId}`;
 
-    // Try to get from cache first (only if not viewing as another user, to avoid cache complexity)
     if (!currentUserId || currentUserId === userId) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) {
-        const cachedUser = JSON.parse(cached);
-        // If viewing own profile, return cached data
-        if (!currentUserId || currentUserId === userId) {
-          return cachedUser;
-        }
+        return JSON.parse(cached);
       }
     }
 
-    const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
     if (!user) throw new NotFoundException('User not found');
-    
-    // Check if current user is blocked by this user
-    if (currentUserId && user.blockedUsers?.some((id: any) => id.toString() === currentUserId)) {
+
+    if (currentUserId && user.blockedUsers?.includes(currentUserId)) {
       throw new ForbiddenException('You are blocked by this user');
     }
-    
-    // Convert to plain object
-    const userObj = user.toObject();
-    
-    // Get follower and following counts
+
+    const userObj = user.toObject ? user.toObject() : { ...user };
     const followerCount = userObj.followers?.length || 0;
     const followingCount = userObj.following?.length || 0;
-    
+
     let result;
     if (currentUserId && currentUserId !== userId) {
-      // Check if current user is following this user
-      const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('following');
-      const isFollowing = currentUser?.following?.some(
-        (id: any) => id.toString() === userId
-      ) || false;
-      
+      const currentUser = await this.userRepository.findOne({
+        where: { id: currentUserId, deletedAt: IsNull() },
+      });
+      const isFollowing = currentUser?.following?.includes(userId) || false;
+
       result = {
         ...userObj,
-        id: userObj._id.toString(),
+        id: userObj.id,
+        _id: userObj.id,
         isFollowing,
         followerCount,
         followingCount,
@@ -73,15 +65,15 @@ export class UsersService {
     } else {
       result = {
         ...userObj,
-        id: userObj._id.toString(),
+        id: userObj.id,
+        _id: userObj.id,
         followerCount,
         followingCount,
       };
 
-      // Cache the result (TTL: 30 minutes = 1800 seconds) - only cache own profile view
       await this.redisService.set(cacheKey, JSON.stringify(result), 1800);
     }
-    
+
     return result;
   }
 
@@ -90,49 +82,34 @@ export class UsersService {
       return [];
     }
 
-    // Normalize query for cache key
     const normalizedQuery = query.trim().toLowerCase();
     const cacheKey = `search:users:${normalizedQuery}`;
 
-    // Try to get from cache first
     const cached = await this.redisService.get(cacheKey);
     if (cached) {
       return JSON.parse(cached);
     }
 
-    // Sanitize input to prevent regex injection
-    const sanitizedQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
-    console.log('🔍 Arama yapılıyor:', sanitizedQuery);
-
     try {
-      // Username veya fullName ile arama yap (case-insensitive)
-      const users = await this.userModel
-        .find({
-          deletedAt: null, // Soft delete kontrolü
-          $or: [
-            { username: { $regex: sanitizedQuery, $options: 'i' } },
-            { fullName: { $regex: sanitizedQuery, $options: 'i' } },
-          ],
-        })
-        .select('_id username fullName avatar bio')
+      const users = await this.userRepository
+        .createQueryBuilder('user')
+        .where('user.deletedAt IS NULL')
+        .andWhere('user.fullName ILIKE :q', { q: `%${query.trim()}%` })
+        .select(['user.id', 'user.fullName', 'user.avatar', 'user.bio'])
         .limit(20)
-        .lean();
+        .getMany();
 
-      console.log('✅ Bulunan kullanıcı sayısı:', users.length);
-
-      // ID'leri string'e çevir ve format dönüştür
-      const result = users.map(user => ({
+      const result = users.map((user) => ({
         ...user,
-        id: user._id.toString(),
+        id: user.id,
+        _id: user.id,
+        username: user.fullName,
       }));
 
-      // Cache the result (TTL: 5 minutes = 300 seconds)
       await this.redisService.set(cacheKey, JSON.stringify(result), 300);
-
       return result;
     } catch (error) {
-      console.error('❌ Arama hatası:', error);
+      console.error('Search error:', error);
       return [];
     }
   }
@@ -141,66 +118,58 @@ export class UsersService {
     if (userId === currentUserId) {
       throw new BadRequestException('Cannot follow yourself');
     }
-    
-    // Get users directly (don't use findById to avoid recursion)
-    const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
     if (!user) throw new NotFoundException('User not found');
-    
-    const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null });
+
+    const currentUser = await this.userRepository.findOne({
+      where: { id: currentUserId, deletedAt: IsNull() },
+    });
     if (!currentUser) throw new NotFoundException('Current user not found');
 
-    // Check if current user is blocked by target user
-    const blockedByTarget = user.blockedUsers?.some(
-      (id: any) => id.toString() === currentUserId
-    );
-    if (blockedByTarget) {
+    if (user.blockedUsers?.includes(currentUserId)) {
       throw new ForbiddenException('You are blocked by this user');
     }
 
-    // Check if current user has blocked target user
-    const hasBlockedTarget = currentUser.blockedUsers?.some(
-      (id: any) => id.toString() === userId
-    );
-    if (hasBlockedTarget) {
+    if (currentUser.blockedUsers?.includes(userId)) {
       throw new ForbiddenException('You have blocked this user');
     }
 
-    // Check if already following (convert to string for comparison)
-    const isAlreadyFollowing = currentUser.following?.some(
-      (id: any) => id.toString() === userId
-    );
-    if (isAlreadyFollowing) {
+    if (currentUser.following?.includes(userId)) {
       throw new BadRequestException('Already following');
     }
 
-    await this.userModel.updateOne(
-      { _id: currentUserId },
-      { $addToSet: { following: userId } }
-    );
-    await this.userModel.updateOne(
-      { _id: userId },
-      { $addToSet: { followers: currentUserId } }
-    );
+    currentUser.following = [...(currentUser.following || []), userId];
+    user.followers = [...(user.followers || []), currentUserId];
 
-    // Invalidate feed cache for the current user (their feed will change)
+    await this.userRepository.save(currentUser);
+    await this.userRepository.save(user);
+
     await this.invalidateFeedCache(currentUserId);
-
     return { message: 'Followed successfully' };
   }
 
   async unfollow(userId: string, currentUserId: string) {
-    await this.userModel.updateOne(
-      { _id: currentUserId },
-      { $pull: { following: userId } }
-    );
-    await this.userModel.updateOne(
-      { _id: userId },
-      { $pull: { followers: currentUserId } }
-    );
+    const currentUser = await this.userRepository.findOne({
+      where: { id: currentUserId, deletedAt: IsNull() },
+    });
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
 
-    // Invalidate feed cache for the current user (their feed will change)
+    if (currentUser) {
+      currentUser.following = (currentUser.following || []).filter((id) => id !== userId);
+      await this.userRepository.save(currentUser);
+    }
+
+    if (user) {
+      user.followers = (user.followers || []).filter((id) => id !== currentUserId);
+      await this.userRepository.save(user);
+    }
+
     await this.invalidateFeedCache(currentUserId);
-
     return { message: 'Unfollowed successfully' };
   }
 
@@ -208,308 +177,263 @@ export class UsersService {
     if (userId === currentUserId) {
       throw new BadRequestException('Cannot block yourself');
     }
-    
-    await this.userModel.updateOne(
-      { _id: currentUserId },
-      { $addToSet: { blockedUsers: userId } }
-    );
+
+    const currentUser = await this.userRepository.findOne({
+      where: { id: currentUserId, deletedAt: IsNull() },
+    });
+    if (currentUser) {
+      if (!currentUser.blockedUsers?.includes(userId)) {
+        currentUser.blockedUsers = [...(currentUser.blockedUsers || []), userId];
+        await this.userRepository.save(currentUser);
+      }
+    }
+
     await this.unfollow(userId, currentUserId);
     await this.unfollow(currentUserId, userId);
     return { message: 'Blocked successfully' };
   }
 
   async unblock(userId: string, currentUserId: string) {
-    await this.userModel.updateOne(
-      { _id: currentUserId },
-      { $pull: { blockedUsers: userId } }
-    );
+    const currentUser = await this.userRepository.findOne({
+      where: { id: currentUserId, deletedAt: IsNull() },
+    });
+    if (currentUser) {
+      currentUser.blockedUsers = (currentUser.blockedUsers || []).filter((id) => id !== userId);
+      await this.userRepository.save(currentUser);
+    }
     return { message: 'Unblocked successfully' };
   }
 
   async updateProfile(userId: string, data: UpdateProfileDto) {
-    const updatedUser = await this.userModel.findOneAndUpdate(
-      { _id: userId, deletedAt: null },
-      data,
-      { new: true }
-    );
+    await this.userRepository.update({ id: userId, deletedAt: IsNull() }, data as any);
+
+    const updatedUser = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
     if (!updatedUser) throw new NotFoundException('User not found');
-    
-    const userObj = updatedUser.toObject();
+
+    const userObj = updatedUser.toObject ? updatedUser.toObject() : { ...updatedUser };
     const result = {
       ...userObj,
-      id: userObj._id.toString(),
+      id: userObj.id,
+      _id: userObj.id,
       followerCount: userObj.followers?.length || 0,
       followingCount: userObj.following?.length || 0,
     };
 
-    // Invalidate user profile cache
     await this.redisService.del(`user:${userId}`);
-
     return result;
   }
 
   async getBlockedUsers(userId: string) {
-    const user = await this.userModel.findOne({ _id: userId, deletedAt: null }).populate('blockedUsers');
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
     if (!user) throw new NotFoundException('User not found');
-    return user.blockedUsers;
+
+    const blockedIds = user.blockedUsers || [];
+    if (blockedIds.length === 0) return [];
+
+    return this.userRepository.find({
+      where: { id: In(blockedIds), deletedAt: IsNull() },
+      select: ['id', 'fullName', 'avatar'],
+    });
   }
 
   async getFollowers(userId: string, currentUserId?: string) {
-    const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
     if (!user) throw new NotFoundException('User not found');
-    
-    // Check if current user is blocked by this user
-    if (currentUserId && user.blockedUsers?.some((id: any) => id.toString() === currentUserId)) {
+
+    if (currentUserId && user.blockedUsers?.includes(currentUserId)) {
       throw new ForbiddenException('You are blocked by this user');
     }
-    
-    // Check if followers are hidden
+
     const isOwnProfile = currentUserId && currentUserId === userId;
     if (!isOwnProfile && user.hideFollowers) {
       throw new ForbiddenException('Followers list is hidden');
     }
-    
+
     const followerIds = user.followers || [];
     if (followerIds.length === 0) return [];
-    
-    // Filter out hidden followers if not own profile
+
     let visibleFollowerIds = followerIds;
     if (!isOwnProfile && user.hiddenFollowers && user.hiddenFollowers.length > 0) {
-      const hiddenIds = user.hiddenFollowers.map((id: any) => id.toString());
-      visibleFollowerIds = followerIds.filter((id: any) => !hiddenIds.includes(id.toString()));
+      visibleFollowerIds = followerIds.filter((id) => !user.hiddenFollowers.includes(id));
     }
-    
+
     if (visibleFollowerIds.length === 0) return [];
-    
-    // Get follower users
-    const followers = await this.userModel.find({
-      _id: { $in: visibleFollowerIds },
-      deletedAt: null, // Soft delete kontrolü
-    }).select('fullName avatar _id');
-    
-    // Get current user's following list to check isFollowing
+
+    const followers = await this.userRepository.find({
+      where: { id: In(visibleFollowerIds), deletedAt: IsNull() },
+      select: ['id', 'fullName', 'avatar'],
+    });
+
     let currentUserFollowing: string[] = [];
     if (currentUserId) {
-      const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('following');
-      currentUserFollowing = currentUser?.following?.map((id: any) => id.toString()) || [];
+      const currentUser = await this.userRepository.findOne({
+        where: { id: currentUserId, deletedAt: IsNull() },
+      });
+      currentUserFollowing = currentUser?.following || [];
     }
-    
-    // Format response
-    return followers.map((follower: any) => {
-      const followerId = follower._id.toString();
-      return {
-        id: followerId,
-        fullName: follower.fullName,
-        avatar: follower.avatar,
-        isFollowing: currentUserFollowing.includes(followerId),
-      };
-    });
+
+    return followers.map((follower) => ({
+      id: follower.id,
+      _id: follower.id,
+      fullName: follower.fullName,
+      avatar: follower.avatar,
+      isFollowing: currentUserFollowing.includes(follower.id),
+    }));
   }
 
   async getFollowing(userId: string, currentUserId?: string) {
-    const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
     if (!user) throw new NotFoundException('User not found');
-    
-    // Check if current user is blocked by this user
-    if (currentUserId && user.blockedUsers?.some((id: any) => id.toString() === currentUserId)) {
+
+    if (currentUserId && user.blockedUsers?.includes(currentUserId)) {
       throw new ForbiddenException('You are blocked by this user');
     }
-    
-    // Check if following are hidden
+
     const isOwnProfile = currentUserId && currentUserId === userId;
     if (!isOwnProfile && user.hideFollowing) {
       throw new ForbiddenException('Following list is hidden');
     }
-    
+
     const followingIds = user.following || [];
     if (followingIds.length === 0) return [];
-    
-    // Filter out hidden following if not own profile
+
     let visibleFollowingIds = followingIds;
     if (!isOwnProfile && user.hiddenFollowing && user.hiddenFollowing.length > 0) {
-      const hiddenIds = user.hiddenFollowing.map((id: any) => id.toString());
-      visibleFollowingIds = followingIds.filter((id: any) => !hiddenIds.includes(id.toString()));
+      visibleFollowingIds = followingIds.filter((id) => !user.hiddenFollowing.includes(id));
     }
-    
+
     if (visibleFollowingIds.length === 0) return [];
-    
-    // Get following users
-    const following = await this.userModel.find({
-      _id: { $in: visibleFollowingIds },
-      deletedAt: null, // Soft delete kontrolü
-    }).select('fullName avatar _id');
-    
-    // Get current user's following list to check isFollowing
+
+    const following = await this.userRepository.find({
+      where: { id: In(visibleFollowingIds), deletedAt: IsNull() },
+      select: ['id', 'fullName', 'avatar'],
+    });
+
     let currentUserFollowing: string[] = [];
     if (currentUserId) {
-      const currentUser = await this.userModel.findOne({ _id: currentUserId, deletedAt: null }).select('following');
-      currentUserFollowing = currentUser?.following?.map((id: any) => id.toString()) || [];
+      const currentUser = await this.userRepository.findOne({
+        where: { id: currentUserId, deletedAt: IsNull() },
+      });
+      currentUserFollowing = currentUser?.following || [];
     }
-    
-    // Format response
-    return following.map((followed: any) => {
-      const followedId = followed._id.toString();
-      return {
-        id: followedId,
-        fullName: followed.fullName,
-        avatar: followed.avatar,
-        isFollowing: currentUserFollowing.includes(followedId),
-      };
-    });
+
+    return following.map((followed) => ({
+      id: followed.id,
+      _id: followed.id,
+      fullName: followed.fullName,
+      avatar: followed.avatar,
+      isFollowing: currentUserFollowing.includes(followed.id),
+    }));
   }
 
   async deleteAccount(userId: string) {
-    console.log('🗑️ Kullanıcı hesabı siliniyor (soft delete):', userId);
-
-    // Kullanıcının var olup olmadığını kontrol et
-    const user = await this.userModel.findOne({ _id: userId, deletedAt: null });
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
     const deletedAt = new Date();
 
-    // 1. Tüm postları soft delete yap ve ilişkili verileri temizle
-    const userPosts = await this.postModel.find({ userId, deletedAt: null }).select('_id');
-    const postIds = userPosts.map(p => p._id.toString());
-    
-    if (postIds.length > 0) {
-      // Post'lara ait yorumları soft delete yap
-      await this.commentModel.updateMany(
-        { postId: { $in: postIds }, deletedAt: null },
-        { $set: { deletedAt } }
-      );
-      
-      // Post'lara ait bildirimleri soft delete yap
-      await this.notificationModel.updateMany(
-        { postId: { $in: postIds }, deletedAt: null },
-        { $set: { deletedAt } }
-      );
-      
-      // Tüm kullanıcıların savedPosts'larından bu postları kaldır
-      await this.userModel.updateMany(
-        { savedPosts: { $in: postIds } },
-        { $pull: { savedPosts: { $in: postIds } } }
-      );
-      
-      // Post'ları soft delete yap
-      await this.postModel.updateMany(
-        { userId, deletedAt: null },
-        { $set: { deletedAt } }
-      );
-      console.log(`  ✅ ${postIds.length} post soft delete yapıldı`);
-    }
-
-    // 2. Kullanıcının yazdığı yorumları soft delete yap
-    const deletedComments = await this.commentModel.updateMany(
-      { userId, deletedAt: null },
-      { $set: { deletedAt } }
-    );
-    console.log(`  ✅ ${deletedComments.modifiedCount} yorum soft delete yapıldı`);
-
-    // 3. Mesajları ve conversation'ları temizle
-    const userConversations = await this.conversationModel.find({
-      participants: userId,
-      deletedAt: null,
+    const userPosts = await this.postRepository.find({
+      where: { userId, deletedAt: IsNull() },
+      select: ['id'],
     });
-    
-    for (const conv of userConversations) {
-      // Conversation'daki mesajları soft delete yap
-      await this.messageModel.updateMany(
-        { conversationId: conv._id.toString(), deletedAt: null },
-        { $set: { deletedAt } }
-      );
-      
-      // Eğer conversation'da sadece bu kullanıcı varsa conversation'ı soft delete yap
-      // Değilse, participants'tan bu kullanıcıyı çıkar
-      const otherParticipants = conv.participants.filter(
-        (p: any) => p.toString() !== userId
-      );
-      
-      if (otherParticipants.length === 0) {
-        await this.conversationModel.updateOne(
-          { _id: conv._id },
-          { $set: { deletedAt } }
-        );
-      } else {
-        await this.conversationModel.updateOne(
-          { _id: conv._id },
-          { $pull: { participants: userId } }
-        );
-      }
+    const postIds = userPosts.map((p) => p.id);
+
+    if (postIds.length > 0) {
+      await this.commentRepository
+        .createQueryBuilder()
+        .update(Comment)
+        .set({ deletedAt })
+        .where('postId IN (:...postIds)', { postIds })
+        .andWhere('deletedAt IS NULL')
+        .execute();
+
+      await this.notificationRepository
+        .createQueryBuilder()
+        .update(Notification)
+        .set({ deletedAt })
+        .where('postId IN (:...postIds)', { postIds })
+        .andWhere('deletedAt IS NULL')
+        .execute();
+
+      await this.postRepository
+        .createQueryBuilder()
+        .update(Post)
+        .set({ deletedAt })
+        .where('userId = :userId', { userId })
+        .andWhere('deletedAt IS NULL')
+        .execute();
     }
-    console.log(`  ✅ ${userConversations.length} conversation temizlendi`);
 
-    // 4. Bildirimleri soft delete yap (kullanıcıya gelen ve kullanıcıdan giden)
-    const deletedNotifications = await this.notificationModel.updateMany(
-      {
-        $or: [
-          { userId, deletedAt: null },
-          { fromUserId: userId, deletedAt: null },
-        ],
-      },
-      { $set: { deletedAt } }
-    );
-    console.log(`  ✅ ${deletedNotifications.modifiedCount} bildirim soft delete yapıldı`);
+    await this.commentRepository
+      .createQueryBuilder()
+      .update(Comment)
+      .set({ deletedAt })
+      .where('userId = :userId', { userId })
+      .andWhere('deletedAt IS NULL')
+      .execute();
 
-    // 5. Follow ilişkilerini temizle
-    // Kullanıcıyı takip edenlerin following listesinden çıkar
-    await this.userModel.updateMany(
-      { following: userId, deletedAt: null },
-      { $pull: { following: userId } }
-    );
-    
-    // Kullanıcının takip ettiği kişilerin followers listesinden çıkar
-    await this.userModel.updateMany(
-      { followers: userId, deletedAt: null },
-      { $pull: { followers: userId } }
-    );
-    console.log('  ✅ Follow ilişkileri temizlendi');
+    const userConversations = await this.conversationRepository
+      .createQueryBuilder('c')
+      .where(':userId = ANY(c.participants)', { userId })
+      .andWhere('c.deletedAt IS NULL')
+      .getMany();
 
-    // 6. Block ilişkilerini temizle
-    // Kullanıcıyı engelleyenlerin blockedUsers listesinden çıkar
-    await this.userModel.updateMany(
-      { blockedUsers: userId, deletedAt: null },
-      { $pull: { blockedUsers: userId } }
-    );
-    console.log('  ✅ Block ilişkileri temizlendi');
+    for (const conv of userConversations) {
+      await this.messageRepository
+        .createQueryBuilder()
+        .update(Message)
+        .set({ deletedAt })
+        .where('conversationId = :convId', { convId: conv.id })
+        .andWhere('deletedAt IS NULL')
+        .execute();
 
-    // 7. Saved posts'ları temizle
-    await this.userModel.updateOne(
-      { _id: userId },
-      { $set: { savedPosts: [] } }
-    );
+      const otherParticipants = conv.participants.filter((p) => p !== userId);
+      if (otherParticipants.length === 0) {
+        conv.deletedAt = deletedAt;
+      } else {
+        conv.participants = otherParticipants;
+      }
+      await this.conversationRepository.save(conv);
+    }
 
-    // 8. UserCredentials'ı sil (hard delete - güvenlik için)
-    await this.credentialsModel.deleteOne({ userId });
-    console.log('  ✅ Kullanıcı kimlik bilgileri silindi');
+    await this.notificationRepository
+      .createQueryBuilder()
+      .update(Notification)
+      .set({ deletedAt })
+      .where('(userId = :userId OR fromUserId = :userId)', { userId })
+      .andWhere('deletedAt IS NULL')
+      .execute();
 
-    // 9. Son olarak User'ı soft delete yap
-    await this.userModel.updateOne(
-      { _id: userId },
-      { $set: { deletedAt } }
-    );
-    console.log('  ✅ Kullanıcı hesabı soft delete yapıldı');
+    await this.credentialsRepository.delete({ userId });
 
-    // Invalidate feed cache (user's feed cache will be removed via TTL, but also clear it explicitly)
+    user.deletedAt = deletedAt;
+    await this.userRepository.save(user);
+
     await this.invalidateFeedCache(userId);
-
-    // Invalidate user profile cache
     await this.redisService.del(`user:${userId}`);
 
     return { message: 'Account deleted successfully' };
   }
 
-  // Helper method to invalidate feed cache
   private async invalidateFeedCache(userId: string): Promise<void> {
     try {
-      // Get all feed cache keys for this user
       const keys = await this.redisService.keys(`feed:${userId}:*`);
       if (keys.length > 0) {
         await this.redisService.mdel(keys);
       }
     } catch (error) {
-      // Log error but don't throw - cache invalidation should not break the flow
       console.error('Error invalidating feed cache:', error);
     }
   }

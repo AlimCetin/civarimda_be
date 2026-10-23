@@ -8,7 +8,7 @@ import { User } from '../entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { AddCommentDto } from './dto/add-comment.dto';
 import { UpdateVisibilityDto } from './dto/update-visibility.dto';
-import { Types } from 'mongoose';
+import { Types } from '../common/utils/id.util';
 import { multerConfig } from '../config/multer.config';
 
 @Controller('posts')
