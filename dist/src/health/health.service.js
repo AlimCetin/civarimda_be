@@ -96,11 +96,19 @@ let HealthService = class HealthService {
     }
     async checkRedis() {
         try {
-            const client = this.redisService['client'];
+            if (!this.redisService.isClientConnected()) {
+                return {
+                    status: 'up',
+                    state: 'in-memory-fallback',
+                    message: 'Redis is not connected; operating in in-memory mode',
+                };
+            }
+            const client = this.redisService.getClient();
             if (!client) {
                 return {
-                    status: 'down',
-                    message: 'Redis client not initialized',
+                    status: 'up',
+                    state: 'in-memory-fallback',
+                    message: 'Redis client not initialized; operating in in-memory mode',
                 };
             }
             try {
@@ -113,15 +121,16 @@ let HealthService = class HealthService {
             }
             catch (pingError) {
                 return {
-                    status: 'down',
-                    state: 'disconnected',
-                    message: pingError.message || 'Redis ping failed',
+                    status: 'up',
+                    state: 'in-memory-fallback',
+                    message: pingError.message || 'Redis ping failed; operating in in-memory mode',
                 };
             }
         }
         catch (error) {
             return {
-                status: 'down',
+                status: 'up',
+                state: 'in-memory-fallback',
                 message: error.message,
             };
         }

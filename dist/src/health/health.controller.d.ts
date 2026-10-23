@@ -44,11 +44,6 @@ export declare class HealthController {
                 state: string;
                 message: any;
                 response?: undefined;
-            } | {
-                status: string;
-                message: any;
-                state?: undefined;
-                response?: undefined;
             };
         };
         system: {

@@ -7,6 +7,7 @@ export declare class RedisService implements OnModuleInit, OnModuleDestroy {
     private readonly logger;
     private isConnected;
     private redisUrl;
+    private inMemoryStore;
     constructor(configService: ConfigService);
     onModuleInit(): Promise<void>;
     onModuleDestroy(): Promise<void>;
@@ -21,6 +22,6 @@ export declare class RedisService implements OnModuleInit, OnModuleDestroy {
     keys(pattern: string): Promise<string[]>;
     mget(keys: string[]): Promise<(string | null)[]>;
     mdel(keys: string[]): Promise<void>;
-    getClient(): RedisClientType;
+    getClient(): RedisClientType | null;
     isClientConnected(): boolean;
 }

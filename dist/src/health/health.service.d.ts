@@ -41,11 +41,6 @@ export declare class HealthService {
                 state: string;
                 message: any;
                 response?: undefined;
-            } | {
-                status: string;
-                message: any;
-                state?: undefined;
-                response?: undefined;
             };
         };
         system: {
