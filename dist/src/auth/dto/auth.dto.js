@@ -34,7 +34,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsNotEmpty)({ message: 'Full name is required' }),
     (0, class_validator_1.MaxLength)(50, { message: 'Full name must be at most 50 characters' }),
-    (0, class_validator_1.Matches)(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/, { message: 'Full name can only contain letters and spaces' }),
+    (0, class_validator_1.Matches)(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s.'-]+$/, { message: 'Ad Soyad yalnızca harf, boşluk ve geçerli karakterler (. -) içerebilir' }),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "fullName", void 0);
 class LoginDto {

@@ -23,8 +23,8 @@ let CampaignsController = class CampaignsController {
     constructor(campaignsService) {
         this.campaignsService = campaignsService;
     }
-    async findAll(city) {
-        return this.campaignsService.findAll(city);
+    async findAll(city, lat, lng, radius) {
+        return this.campaignsService.findAll(city, lat, lng, radius);
     }
     async findMyCampaigns(user) {
         return this.campaignsService.findMyCampaigns(user.id);
@@ -64,8 +64,11 @@ exports.CampaignsController = CampaignsController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)('city')),
+    __param(1, (0, common_1.Query)('lat')),
+    __param(2, (0, common_1.Query)('lng')),
+    __param(3, (0, common_1.Query)('radius')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Number, Number, Number]),
     __metadata("design:returntype", Promise)
 ], CampaignsController.prototype, "findAll", null);
 __decorate([

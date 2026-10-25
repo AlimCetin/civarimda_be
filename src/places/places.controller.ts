@@ -20,8 +20,14 @@ export class PlacesController {
   constructor(private placesService: PlacesService) {}
 
   @Get()
-  async findAll(@Query('city') city?: string, @Query('category') category?: string) {
-    return this.placesService.findAll(city, category);
+  async findAll(
+    @Query('city') city?: string,
+    @Query('category') category?: string,
+    @Query('lat') lat?: number,
+    @Query('lng') lng?: number,
+    @Query('radius') radius?: number,
+  ) {
+    return this.placesService.findAll(city, category, lat, lng, radius);
   }
 
   @Get('me')

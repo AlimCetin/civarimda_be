@@ -31,17 +31,59 @@ let CampaignsService = class CampaignsService {
         this.commentRepo = commentRepo;
         this.userRepo = userRepo;
     }
-    async findAll(city) {
-        const qb = this.campaignRepo.createQueryBuilder('c').orderBy('c.createdAt', 'DESC');
-        if (city && city.trim()) {
+    async findAll(city, lat, lng, radiusKm) {
+        const qb = this.campaignRepo.createQueryBuilder('c');
+        const hasCoords = lat !== undefined &&
+            lat !== null &&
+            !isNaN(Number(lat)) &&
+            lng !== undefined &&
+            lng !== null &&
+            !isNaN(Number(lng));
+        const userLat = hasCoords ? Number(lat) : null;
+        const userLng = hasCoords ? Number(lng) : null;
+        const radius = radiusKm !== undefined &&
+            radiusKm !== null &&
+            !isNaN(Number(radiusKm)) &&
+            Number(radiusKm) > 0
+            ? Number(radiusKm)
+            : null;
+        if (hasCoords && userLat !== null && userLng !== null) {
+            const haversineFormula = `(6371 * acos(least(1.0, greatest(-1.0, cos(radians(:lat)) * cos(radians(c.latitude)) * cos(radians(c.longitude) - radians(:lng)) + sin(radians(:lat)) * sin(radians(c.latitude))))))`;
+            qb.addSelect(haversineFormula, 'distance').setParameters({
+                lat: userLat,
+                lng: userLng,
+            });
+            if (radius) {
+                qb.andWhere(`c.latitude IS NOT NULL AND c.longitude IS NOT NULL AND ${haversineFormula} <= :radius`, { radius });
+            }
+            qb.orderBy('CASE WHEN c.latitude IS NOT NULL AND c.longitude IS NOT NULL THEN 0 ELSE 1 END', 'ASC')
+                .addOrderBy('distance', 'ASC')
+                .addOrderBy('c.createdAt', 'DESC');
+        }
+        else {
+            qb.orderBy('c.createdAt', 'DESC');
+        }
+        if (city && city.trim() && !radius) {
             const cleanCity = city.split('-')[0].trim();
             qb.where('c.city ILIKE :city OR c.city ILIKE :cleanCity', {
                 city: `%${city}%`,
                 cleanCity: `%${cleanCity}%`,
             });
         }
-        const items = await qb.getMany();
-        return items.map((i) => i.toObject());
+        if (hasCoords) {
+            const rawAndEntities = await qb.getRawAndEntities();
+            return rawAndEntities.entities.map((campaign, idx) => {
+                const rawDist = rawAndEntities.raw[idx]?.distance;
+                const parsedDist = rawDist !== null && rawDist !== undefined
+                    ? Math.round(Number(rawDist) * 10) / 10
+                    : null;
+                return campaign.toObject(parsedDist);
+            });
+        }
+        else {
+            const items = await qb.getMany();
+            return items.map((i) => i.toObject());
+        }
     }
     async findMyCampaigns(userId) {
         const items = await this.campaignRepo.find({
@@ -57,12 +99,20 @@ let CampaignsService = class CampaignsService {
         return item.toObject();
     }
     async create(userId, data) {
+        const lat = data.latitude !== undefined && data.latitude !== null && data.latitude !== ''
+            ? Number(data.latitude)
+            : null;
+        const lng = data.longitude !== undefined && data.longitude !== null && data.longitude !== ''
+            ? Number(data.longitude)
+            : null;
         const campaign = this.campaignRepo.create({
             ...data,
             userId,
             likes: [],
             currentClaims: 0,
             commentCount: 0,
+            latitude: lat,
+            longitude: lng,
         });
         const saved = await this.campaignRepo.save(campaign);
         return saved.toObject();
@@ -74,6 +124,14 @@ let CampaignsService = class CampaignsService {
         const canEdit = campaign.userId === userId || ['admin', 'super_admin', 'moderator'].includes(userRole);
         if (!canEdit)
             throw new common_1.ForbiddenException('Bu kampanyayı düzenleme yetkiniz yok');
+        if (data.latitude !== undefined) {
+            data.latitude =
+                data.latitude !== null && data.latitude !== '' ? Number(data.latitude) : null;
+        }
+        if (data.longitude !== undefined) {
+            data.longitude =
+                data.longitude !== null && data.longitude !== '' ? Number(data.longitude) : null;
+        }
         Object.assign(campaign, data);
         const updated = await this.campaignRepo.save(campaign);
         return updated.toObject();

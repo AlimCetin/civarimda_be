@@ -19,6 +19,8 @@ let Place = class Place {
     imageUrl;
     images;
     city;
+    latitude;
+    longitude;
     businessName;
     category;
     address;
@@ -35,7 +37,7 @@ let Place = class Place {
         if (!this.images)
             this.images = [];
     }
-    toObject() {
+    toObject(distance) {
         return {
             ...this,
             id: this.id,
@@ -44,6 +46,9 @@ let Place = class Place {
             createdBy: this.userId,
             likes: this.likes || [],
             images: this.images || [],
+            latitude: this.latitude !== null && this.latitude !== undefined ? Number(this.latitude) : null,
+            longitude: this.longitude !== null && this.longitude !== undefined ? Number(this.longitude) : null,
+            distance: distance !== undefined ? distance : null,
         };
     }
 };
@@ -76,6 +81,14 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 100, default: '' }),
     __metadata("design:type", String)
 ], Place.prototype, "city", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 7, nullable: true, default: null }),
+    __metadata("design:type", Object)
+], Place.prototype, "latitude", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 7, nullable: true, default: null }),
+    __metadata("design:type", Object)
+], Place.prototype, "longitude", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: '' }),
     __metadata("design:type", String)

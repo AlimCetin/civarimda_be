@@ -31,6 +31,12 @@ export class Campaign {
   @Column({ type: 'varchar', length: 100, default: '' })
   city: string;
 
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true, default: null })
+  latitude: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true, default: null })
+  longitude: number | null;
+
   @Column({ type: 'varchar', length: 255, default: '' })
   businessName: string;
 
@@ -69,13 +75,16 @@ export class Campaign {
     if (!this.likes) this.likes = [];
   }
 
-  toObject() {
+  toObject(distance?: number | null) {
     return {
       ...this,
       id: this.id,
       _id: this.id,
       createdBy: this.userId,
       likes: this.likes || [],
+      latitude: this.latitude !== null && this.latitude !== undefined ? Number(this.latitude) : null,
+      longitude: this.longitude !== null && this.longitude !== undefined ? Number(this.longitude) : null,
+      distance: distance !== undefined ? distance : null,
     };
   }
 }

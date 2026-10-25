@@ -3,7 +3,7 @@ import { PlacesService } from './places.service';
 export declare class PlacesController {
     private placesService;
     constructor(placesService: PlacesService);
-    findAll(city?: string, category?: string): Promise<any[]>;
+    findAll(city?: string, category?: string, lat?: number, lng?: number, radius?: number): Promise<any[]>;
     findMyPlaces(user: User): Promise<any[]>;
     findOne(id: string): Promise<any>;
     create(body: any, user: User): Promise<any>;

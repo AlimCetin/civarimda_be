@@ -7,7 +7,7 @@ export declare class PlacesService {
     private commentRepo;
     private userRepo;
     constructor(placeRepo: Repository<Place>, commentRepo: Repository<ItemComment>, userRepo: Repository<User>);
-    findAll(city?: string, category?: string): Promise<any[]>;
+    findAll(city?: string, category?: string, lat?: number, lng?: number, radiusKm?: number): Promise<any[]>;
     findMyPlaces(userId: string): Promise<any[]>;
     findOne(id: string): Promise<any>;
     create(userId: string, data: any): Promise<any>;

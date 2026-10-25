@@ -14,6 +14,8 @@ import { AdminModule } from './admin/admin.module';
 import { AdsModule } from './ads/ads.module';
 import { CampaignsModule } from './campaigns/campaigns.module';
 import { PlacesModule } from './places/places.module';
+import { SettingsModule } from './settings/settings.module';
+import { FeedbackModule } from './feedback/feedback.module';
 import { AppController } from './app.controller';
 import { AppLoggerService } from './common/logger/logger.service';
 import { RedisModule } from './common/redis/redis.module';
@@ -45,6 +47,8 @@ import { HealthModule } from './health/health.module';
     AdsModule,
     CampaignsModule,
     PlacesModule,
+    SettingsModule,
+    FeedbackModule,
   ],
   controllers: [AppController],
   providers: [

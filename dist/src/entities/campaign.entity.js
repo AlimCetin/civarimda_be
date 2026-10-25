@@ -18,6 +18,8 @@ let Campaign = class Campaign {
     description;
     imageUrl;
     city;
+    latitude;
+    longitude;
     businessName;
     discountRate;
     maxClaims;
@@ -33,13 +35,16 @@ let Campaign = class Campaign {
         if (!this.likes)
             this.likes = [];
     }
-    toObject() {
+    toObject(distance) {
         return {
             ...this,
             id: this.id,
             _id: this.id,
             createdBy: this.userId,
             likes: this.likes || [],
+            latitude: this.latitude !== null && this.latitude !== undefined ? Number(this.latitude) : null,
+            longitude: this.longitude !== null && this.longitude !== undefined ? Number(this.longitude) : null,
+            distance: distance !== undefined ? distance : null,
         };
     }
 };
@@ -68,6 +73,14 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 100, default: '' }),
     __metadata("design:type", String)
 ], Campaign.prototype, "city", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 7, nullable: true, default: null }),
+    __metadata("design:type", Object)
+], Campaign.prototype, "latitude", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 7, nullable: true, default: null }),
+    __metadata("design:type", Object)
+], Campaign.prototype, "longitude", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: '' }),
     __metadata("design:type", String)

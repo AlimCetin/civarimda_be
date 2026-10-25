@@ -3,7 +3,7 @@ import { CampaignsService } from './campaigns.service';
 export declare class CampaignsController {
     private campaignsService;
     constructor(campaignsService: CampaignsService);
-    findAll(city?: string): Promise<any[]>;
+    findAll(city?: string, lat?: number, lng?: number, radius?: number): Promise<any[]>;
     findMyCampaigns(user: User): Promise<any[]>;
     getMyCodes(user: User): Promise<any[]>;
     findOne(id: string): Promise<any>;

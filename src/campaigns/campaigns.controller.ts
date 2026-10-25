@@ -20,8 +20,13 @@ export class CampaignsController {
   constructor(private campaignsService: CampaignsService) {}
 
   @Get()
-  async findAll(@Query('city') city?: string) {
-    return this.campaignsService.findAll(city);
+  async findAll(
+    @Query('city') city?: string,
+    @Query('lat') lat?: number,
+    @Query('lng') lng?: number,
+    @Query('radius') radius?: number,
+  ) {
+    return this.campaignsService.findAll(city, lat, lng, radius);
   }
 
   @Get('me')

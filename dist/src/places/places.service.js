@@ -28,9 +28,39 @@ let PlacesService = class PlacesService {
         this.commentRepo = commentRepo;
         this.userRepo = userRepo;
     }
-    async findAll(city, category) {
-        const qb = this.placeRepo.createQueryBuilder('p').orderBy('p.createdAt', 'DESC');
-        if (city && city.trim()) {
+    async findAll(city, category, lat, lng, radiusKm) {
+        const qb = this.placeRepo.createQueryBuilder('p');
+        const hasCoords = lat !== undefined &&
+            lat !== null &&
+            !isNaN(Number(lat)) &&
+            lng !== undefined &&
+            lng !== null &&
+            !isNaN(Number(lng));
+        const userLat = hasCoords ? Number(lat) : null;
+        const userLng = hasCoords ? Number(lng) : null;
+        const radius = radiusKm !== undefined &&
+            radiusKm !== null &&
+            !isNaN(Number(radiusKm)) &&
+            Number(radiusKm) > 0
+            ? Number(radiusKm)
+            : null;
+        if (hasCoords && userLat !== null && userLng !== null) {
+            const haversineFormula = `(6371 * acos(least(1.0, greatest(-1.0, cos(radians(:lat)) * cos(radians(p.latitude)) * cos(radians(p.longitude) - radians(:lng)) + sin(radians(:lat)) * sin(radians(p.latitude))))))`;
+            qb.addSelect(haversineFormula, 'distance').setParameters({
+                lat: userLat,
+                lng: userLng,
+            });
+            if (radius) {
+                qb.andWhere(`p.latitude IS NOT NULL AND p.longitude IS NOT NULL AND ${haversineFormula} <= :radius`, { radius });
+            }
+            qb.orderBy('CASE WHEN p.latitude IS NOT NULL AND p.longitude IS NOT NULL THEN 0 ELSE 1 END', 'ASC')
+                .addOrderBy('distance', 'ASC')
+                .addOrderBy('p.createdAt', 'DESC');
+        }
+        else {
+            qb.orderBy('p.createdAt', 'DESC');
+        }
+        if (city && city.trim() && !radius) {
             const cleanCity = city.split('-')[0].trim();
             qb.andWhere('(p.city ILIKE :city OR p.city ILIKE :cleanCity)', {
                 city: `%${city}%`,
@@ -40,8 +70,20 @@ let PlacesService = class PlacesService {
         if (category && category.trim()) {
             qb.andWhere('p.category ILIKE :category', { category: `%${category}%` });
         }
-        const items = await qb.getMany();
-        return items.map((i) => i.toObject());
+        if (hasCoords) {
+            const rawAndEntities = await qb.getRawAndEntities();
+            return rawAndEntities.entities.map((place, idx) => {
+                const rawDist = rawAndEntities.raw[idx]?.distance;
+                const parsedDist = rawDist !== null && rawDist !== undefined
+                    ? Math.round(Number(rawDist) * 10) / 10
+                    : null;
+                return place.toObject(parsedDist);
+            });
+        }
+        else {
+            const items = await qb.getMany();
+            return items.map((i) => i.toObject());
+        }
     }
     async findMyPlaces(userId) {
         const items = await this.placeRepo.find({
@@ -57,6 +99,12 @@ let PlacesService = class PlacesService {
         return item.toObject();
     }
     async create(userId, data) {
+        const lat = data.latitude !== undefined && data.latitude !== null && data.latitude !== ''
+            ? Number(data.latitude)
+            : null;
+        const lng = data.longitude !== undefined && data.longitude !== null && data.longitude !== ''
+            ? Number(data.longitude)
+            : null;
         const place = this.placeRepo.create({
             ...data,
             name: data.title || data.name || 'İsimsiz Yer',
@@ -64,6 +112,8 @@ let PlacesService = class PlacesService {
             likes: [],
             images: data.images || (data.imageUrl ? [data.imageUrl] : []),
             commentCount: 0,
+            latitude: lat,
+            longitude: lng,
         });
         const saved = await this.placeRepo.save(place);
         return saved.toObject();
@@ -77,6 +127,14 @@ let PlacesService = class PlacesService {
             throw new common_1.ForbiddenException('Bu yeri düzenleme yetkiniz yok');
         if (data.title && !data.name)
             data.name = data.title;
+        if (data.latitude !== undefined) {
+            data.latitude =
+                data.latitude !== null && data.latitude !== '' ? Number(data.latitude) : null;
+        }
+        if (data.longitude !== undefined) {
+            data.longitude =
+                data.longitude !== null && data.longitude !== '' ? Number(data.longitude) : null;
+        }
         Object.assign(place, data);
         const updated = await this.placeRepo.save(place);
         return updated.toObject();

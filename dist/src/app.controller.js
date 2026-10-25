@@ -15,7 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppController = void 0;
 const common_1 = require("@nestjs/common");
 let AppController = class AppController {
-    LATEST_VERSION = '1.0.2';
+    LATEST_VERSION = '1.0.3';
     MIN_SUPPORTED_VERSION = '1.0.2';
     health() {
         return { status: 'OK', message: 'Civarımda API is running' };

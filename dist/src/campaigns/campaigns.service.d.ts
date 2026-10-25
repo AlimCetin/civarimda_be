@@ -9,11 +9,11 @@ export declare class CampaignsService {
     private commentRepo;
     private userRepo;
     constructor(campaignRepo: Repository<Campaign>, codeRepo: Repository<ClaimedCode>, commentRepo: Repository<ItemComment>, userRepo: Repository<User>);
-    findAll(city?: string): Promise<any[]>;
+    findAll(city?: string, lat?: number, lng?: number, radiusKm?: number): Promise<any[]>;
     findMyCampaigns(userId: string): Promise<any[]>;
     findOne(id: string): Promise<any>;
-    create(userId: string, data: Partial<Campaign>): Promise<any>;
-    update(id: string, userId: string, userRole: string, data: Partial<Campaign>): Promise<any>;
+    create(userId: string, data: any): Promise<any>;
+    update(id: string, userId: string, userRole: string, data: any): Promise<any>;
     delete(id: string, userId: string, userRole: string): Promise<{
         success: boolean;
     }>;

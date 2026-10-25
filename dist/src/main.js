@@ -45,6 +45,7 @@ const express = __importStar(require("express"));
 const app_module_1 = require("./app.module");
 const all_exceptions_filter_1 = require("./common/filters/all-exceptions.filter");
 const logger_service_1 = require("./common/logger/logger.service");
+const swagger_1 = require("@nestjs/swagger");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 async function bootstrap() {
@@ -69,7 +70,7 @@ async function bootstrap() {
             directives: {
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'"],
-                scriptSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'"],
                 imgSrc: ["'self'", 'data:', 'https:'],
                 mediaSrc: ["'self'", 'https:', 'data:', 'blob:'],
             },
@@ -118,6 +119,14 @@ async function bootstrap() {
             enableImplicitConversion: true,
         },
     }));
+    const swaggerConfig = new swagger_1.DocumentBuilder()
+        .setTitle('Civarımda API Dokümantasyonu')
+        .setDescription('Civarımda Platformu REST API Canlı Dokümantasyonu ve Test Arayüzü')
+        .setVersion('1.0.3')
+        .addBearerAuth()
+        .build();
+    const swaggerDocument = swagger_1.SwaggerModule.createDocument(app, swaggerConfig);
+    swagger_1.SwaggerModule.setup('api/docs', app, swaggerDocument);
     app.setGlobalPrefix('api', {
         exclude: ['/'],
     });

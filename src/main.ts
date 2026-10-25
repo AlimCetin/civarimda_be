@@ -8,6 +8,7 @@ import * as express from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppLoggerService } from './common/logger/logger.service';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -21,7 +22,6 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false, // Disable default body parser to configure custom limits
   });
-
 
   // Uploads klasörünü statik olarak sun
   // http://localhost:3000/uploads/videos/xxx.mp4 adresinden erişilebilir olacak
@@ -39,14 +39,14 @@ async function bootstrap() {
   // Use Winston logger for exception filter
   app.useGlobalFilters(new AllExceptionsFilter(logger));
 
-  // Güvenlik Headers - Helmet
+  // Güvenlik Headers - Helmet (Swagger UI uyumlu)
   app.use(helmet({
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https:'],
         mediaSrc: ["'self'", 'https:', 'data:', 'blob:'],
       },
@@ -113,6 +113,16 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Swagger Canlı API Dokümantasyonu (/api/docs)
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Civarımda API Dokümantasyonu')
+    .setDescription('Civarımda Platformu REST API Canlı Dokümantasyonu ve Test Arayüzü')
+    .setVersion('1.0.3')
+    .addBearerAuth()
+    .build();
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, swaggerDocument);
 
   // Tek Giriş Kapısı: Tüm API rotaları istisnasız /api öneki altındadır (/api/health)
   app.setGlobalPrefix('api', {

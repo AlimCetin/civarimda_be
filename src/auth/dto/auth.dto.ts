@@ -18,7 +18,7 @@ export class RegisterDto {
 
   @IsNotEmpty({ message: 'Full name is required' })
   @MaxLength(50, { message: 'Full name must be at most 50 characters' })
-  @Matches(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/, { message: 'Full name can only contain letters and spaces' })
+  @Matches(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s.'-]+$/, { message: 'Ad Soyad yalnızca harf, boşluk ve geçerli karakterler (. -) içerebilir' })
   fullName: string;
 }
 

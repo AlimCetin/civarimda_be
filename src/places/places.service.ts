@@ -17,10 +17,67 @@ export class PlacesService {
     @InjectRepository(User) private userRepo: Repository<User>,
   ) {}
 
-  async findAll(city?: string, category?: string): Promise<any[]> {
-    const qb = this.placeRepo.createQueryBuilder('p').orderBy('p.createdAt', 'DESC');
+  /**
+   * Mekanları listeler. GPS koordinatları (lat, lng) ve yarıçap (radiusKm) verildiğinde
+   * Haversine formülü ile mesafeyi hesaplar, yarıçapa göre filtreler ve en yakından uzağa sıralar.
+   */
+  async findAll(
+    city?: string,
+    category?: string,
+    lat?: number,
+    lng?: number,
+    radiusKm?: number,
+  ): Promise<any[]> {
+    const qb = this.placeRepo.createQueryBuilder('p');
 
-    if (city && city.trim()) {
+    const hasCoords =
+      lat !== undefined &&
+      lat !== null &&
+      !isNaN(Number(lat)) &&
+      lng !== undefined &&
+      lng !== null &&
+      !isNaN(Number(lng));
+
+    const userLat = hasCoords ? Number(lat) : null;
+    const userLng = hasCoords ? Number(lng) : null;
+    const radius =
+      radiusKm !== undefined &&
+      radiusKm !== null &&
+      !isNaN(Number(radiusKm)) &&
+      Number(radiusKm) > 0
+        ? Number(radiusKm)
+        : null;
+
+    if (hasCoords && userLat !== null && userLng !== null) {
+      // PostgreSQL Haversine formülü (km cinsinden)
+      const haversineFormula = `(6371 * acos(least(1.0, greatest(-1.0, cos(radians(:lat)) * cos(radians(p.latitude)) * cos(radians(p.longitude) - radians(:lng)) + sin(radians(:lat)) * sin(radians(p.latitude))))))`;
+
+      qb.addSelect(haversineFormula, 'distance').setParameters({
+        lat: userLat,
+        lng: userLng,
+      });
+
+      if (radius) {
+        // Yarıçap filtresi: Sadece koordinatı olan ve mesafe <= radiusKm olan kayıtlar
+        qb.andWhere(
+          `p.latitude IS NOT NULL AND p.longitude IS NOT NULL AND ${haversineFormula} <= :radius`,
+          { radius },
+        );
+      }
+
+      // En yakındakiler önce gelsin, mesafesi olmayanlar en sona düşsün
+      qb.orderBy(
+        'CASE WHEN p.latitude IS NOT NULL AND p.longitude IS NOT NULL THEN 0 ELSE 1 END',
+        'ASC',
+      )
+        .addOrderBy('distance', 'ASC')
+        .addOrderBy('p.createdAt', 'DESC');
+    } else {
+      qb.orderBy('p.createdAt', 'DESC');
+    }
+
+    // Yarıçap belirtilmemişse şehir filtresi uygula
+    if (city && city.trim() && !radius) {
       const cleanCity = city.split('-')[0].trim();
       qb.andWhere('(p.city ILIKE :city OR p.city ILIKE :cleanCity)', {
         city: `%${city}%`,
@@ -32,8 +89,20 @@ export class PlacesService {
       qb.andWhere('p.category ILIKE :category', { category: `%${category}%` });
     }
 
-    const items = await qb.getMany();
-    return items.map((i) => i.toObject());
+    if (hasCoords) {
+      const rawAndEntities = await qb.getRawAndEntities();
+      return rawAndEntities.entities.map((place, idx) => {
+        const rawDist = rawAndEntities.raw[idx]?.distance;
+        const parsedDist =
+          rawDist !== null && rawDist !== undefined
+            ? Math.round(Number(rawDist) * 10) / 10
+            : null;
+        return place.toObject(parsedDist);
+      });
+    } else {
+      const items = await qb.getMany();
+      return items.map((i) => i.toObject());
+    }
   }
 
   async findMyPlaces(userId: string): Promise<any[]> {
@@ -51,6 +120,15 @@ export class PlacesService {
   }
 
   async create(userId: string, data: any): Promise<any> {
+    const lat =
+      data.latitude !== undefined && data.latitude !== null && data.latitude !== ''
+        ? Number(data.latitude)
+        : null;
+    const lng =
+      data.longitude !== undefined && data.longitude !== null && data.longitude !== ''
+        ? Number(data.longitude)
+        : null;
+
     const place = this.placeRepo.create({
       ...data,
       name: data.title || data.name || 'İsimsiz Yer',
@@ -58,6 +136,8 @@ export class PlacesService {
       likes: [],
       images: data.images || (data.imageUrl ? [data.imageUrl] : []),
       commentCount: 0,
+      latitude: lat,
+      longitude: lng,
     } as Partial<Place>);
     const saved = await this.placeRepo.save(place as Place);
     return (saved as Place).toObject();
@@ -71,6 +151,15 @@ export class PlacesService {
     if (!canEdit) throw new ForbiddenException('Bu yeri düzenleme yetkiniz yok');
 
     if (data.title && !data.name) data.name = data.title;
+    if (data.latitude !== undefined) {
+      data.latitude =
+        data.latitude !== null && data.latitude !== '' ? Number(data.latitude) : null;
+    }
+    if (data.longitude !== undefined) {
+      data.longitude =
+        data.longitude !== null && data.longitude !== '' ? Number(data.longitude) : null;
+    }
+
     Object.assign(place, data);
     const updated = await this.placeRepo.save(place);
     return updated.toObject();

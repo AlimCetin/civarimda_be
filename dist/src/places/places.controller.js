@@ -23,8 +23,8 @@ let PlacesController = class PlacesController {
     constructor(placesService) {
         this.placesService = placesService;
     }
-    async findAll(city, category) {
-        return this.placesService.findAll(city, category);
+    async findAll(city, category, lat, lng, radius) {
+        return this.placesService.findAll(city, category, lat, lng, radius);
     }
     async findMyPlaces(user) {
         return this.placesService.findMyPlaces(user.id);
@@ -59,8 +59,11 @@ __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)('city')),
     __param(1, (0, common_1.Query)('category')),
+    __param(2, (0, common_1.Query)('lat')),
+    __param(3, (0, common_1.Query)('lng')),
+    __param(4, (0, common_1.Query)('radius')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, Number, Number, Number]),
     __metadata("design:returntype", Promise)
 ], PlacesController.prototype, "findAll", null);
 __decorate([
