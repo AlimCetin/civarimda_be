@@ -72,18 +72,21 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       // 1. Mobil uygulamalar (React Native / Android / iOS) ve servis içi istekler:
-      // Tarayıcı olmadıkları için ya origin göndermezler ya da 'null' / 'file://' gönderirler.
       if (!origin || origin === 'null' || origin.startsWith('file://')) {
         return callback(null, true);
       }
 
-      // 2. İzinli web alan adları (Development ve Production web siteleri):
+      // 2. Localhost ve 127.0.0.1 üzerindeki tüm geliştirme portları (Admin paneli vb.):
+      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      // 3. İzinli web alan adları (Development ve Production web siteleri):
       if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      // 3. Yabancı web sitelerinden gelen tarayıcı isteklerini standart olarak reddet
-      // (Sunucuyu 500 ile çökertmek yerine tarayıcı standartı olan false dönülür)
+      // 4. Yabancı web sitelerinden gelen tarayıcı isteklerini standart olarak reddet
       return callback(null, false);
     },
     credentials: true,
