@@ -111,16 +111,9 @@ async function bootstrap() {
     }),
   );
 
-  // Health check endpoints (hem /health hem /api/health isteklerini destekle)
-  app.use(['/health', '/api/health'], (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      return res.status(200).json({ status: 'OK', message: 'Civarımda API is running' });
-    }
-    next();
-  });
-
+  // Tek Giriş Kapısı: Tüm API rotaları istisnasız /api öneki altındadır (/api/health)
   app.setGlobalPrefix('api', {
-    exclude: ['/', '/health', 'health'],
+    exclude: ['/'],
   });
 
   const port = configService.get<number>('PORT', 3000);
