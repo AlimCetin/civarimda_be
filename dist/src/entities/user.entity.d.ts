@@ -1,7 +1,5 @@
 export declare class User {
     id: string;
-    get _id(): string;
-    set _id(val: string);
     fullName: string;
     avatar: string | null;
     bio: string;
@@ -21,9 +19,9 @@ export declare class User {
     deletedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
-    generateId(): void;
     populateVirtuals(): void;
     toObject(): this & {
+        id: string;
         _id: string;
         followers: string[];
         following: string[];

@@ -1,31 +1,21 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
   BeforeInsert,
   BeforeUpdate,
-  AfterLoad,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
 @Entity('user_credentials')
 @Index(['userId'], { unique: true })
 @Index(['email'], { unique: true })
 export class UserCredentials {
-  @PrimaryColumn('varchar', { length: 64 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  get _id(): string {
-    return this.id;
-  }
-
-  set _id(val: string) {
-    if (val) this.id = val;
-  }
 
   @Column({ type: 'varchar', length: 64, unique: true })
   userId: string;
@@ -46,10 +36,7 @@ export class UserCredentials {
   updatedAt: Date;
 
   @BeforeInsert()
-  async generateIdAndHashPassword() {
-    if (!this.id) {
-      this.id = randomUUID();
-    }
+  async hashPasswordOnInsert() {
     if (this.password && !this.password.startsWith('$2a$') && !this.password.startsWith('$2b$')) {
       this.password = await bcrypt.hash(this.password, 12);
     }
@@ -60,11 +47,6 @@ export class UserCredentials {
     if (this.password && !this.password.startsWith('$2a$') && !this.password.startsWith('$2b$')) {
       this.password = await bcrypt.hash(this.password, 12);
     }
-  }
-
-  @AfterLoad()
-  populateVirtuals() {
-    (this as any)._id = this.id;
   }
 
   async comparePassword(candidatePassword: string): Promise<boolean> {

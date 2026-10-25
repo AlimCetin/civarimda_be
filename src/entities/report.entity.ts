@@ -1,14 +1,11 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  BeforeInsert,
-  AfterLoad,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 export enum ReportType {
   USER = 'user',
@@ -47,16 +44,8 @@ export enum ReportPriority {
 @Index(['reporterId'])
 @Index(['reviewedBy'])
 export class Report {
-  @PrimaryColumn('varchar', { length: 64 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  get _id(): string {
-    return this.id;
-  }
-
-  set _id(val: string) {
-    if (val) this.id = val;
-  }
 
   @Column({ type: 'varchar', length: 64 })
   reporterId: string;
@@ -97,21 +86,10 @@ export class Report {
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 
-  @BeforeInsert()
-  generateId() {
-    if (!this.id) {
-      this.id = randomUUID();
-    }
-  }
-
-  @AfterLoad()
-  populateVirtuals() {
-    (this as any)._id = this.id;
-  }
-
   toObject() {
     return {
       ...this,
+      id: this.id,
       _id: this.id,
     };
   }

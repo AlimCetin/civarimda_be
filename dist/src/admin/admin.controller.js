@@ -39,19 +39,19 @@ let AdminController = class AdminController {
         return this.adminService.getUserById(id);
     }
     async banUser(id, banUserDto, admin) {
-        return this.adminService.banUser(id, admin._id.toString(), banUserDto);
+        return this.adminService.banUser(id, admin.id, banUserDto);
     }
     async unbanUser(id, admin) {
-        return this.adminService.unbanUser(id, admin._id.toString());
+        return this.adminService.unbanUser(id, admin.id);
     }
     async warnUser(id, body, admin) {
-        return this.adminService.warnUser(id, admin._id.toString(), body.reason);
+        return this.adminService.warnUser(id, admin.id, body.reason);
     }
     async changeUserRole(id, changeRoleDto, admin) {
-        return this.adminService.changeUserRole(id, admin._id.toString(), changeRoleDto);
+        return this.adminService.changeUserRole(id, admin.id, changeRoleDto);
     }
     async deletePost(id, body, admin) {
-        return this.adminService.deletePost(id, admin._id.toString(), body.reason);
+        return this.adminService.deletePost(id, admin.id, body.reason);
     }
     async getActivityLogs(page = 1, limit = 20, adminId, activityType) {
         return this.adminService.getActivityLogs(page, limit, adminId, activityType);

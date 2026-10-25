@@ -15,7 +15,7 @@ export class MessagesController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.messagesService.getConversations(user._id.toString(), page, limit);
+    return this.messagesService.getConversations(user.id, page, limit);
   }
 
   @Get(':conversationId')
@@ -25,23 +25,23 @@ export class MessagesController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.messagesService.getMessages(conversationId, user._id.toString(), page, limit);
+    return this.messagesService.getMessages(conversationId, user.id, page, limit);
   }
 
   @Post()
   async sendMessage(@Body() body: { receiverId: string; text: string }, @CurrentUser() user: User) {
-    return this.messagesService.sendMessage(user._id.toString(), body.receiverId, body.text);
+    return this.messagesService.sendMessage(user.id, body.receiverId, body.text);
   }
 
   @Put(':conversationId/read')
   async markAsRead(@Param('conversationId') conversationId: string, @CurrentUser() user: User) {
-    const result = await this.messagesService.markAsRead(conversationId, user._id.toString());
+    const result = await this.messagesService.markAsRead(conversationId, user.id);
     return { message: 'Marked as read', modifiedCount: result.modifiedCount };
   }
 
   @Get('unread/count')
   async getUnreadCount(@CurrentUser() user: User) {
-    const count = await this.messagesService.getUnreadMessagesCount(user._id.toString());
+    const count = await this.messagesService.getUnreadMessagesCount(user.id);
     return { count };
   }
 }

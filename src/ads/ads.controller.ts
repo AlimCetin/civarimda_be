@@ -28,7 +28,7 @@ export class AdsController {
   @Post()
   @UseGuards(JwtAuthGuard, AdminGuard)
   async create(@Body() createAdDto: CreateAdDto, @CurrentUser() admin: User) {
-    return this.adsService.create(createAdDto, admin._id.toString());
+    return this.adsService.create(createAdDto, admin.id);
   }
 
   @Get()
@@ -66,13 +66,13 @@ export class AdsController {
     @Body() updateAdDto: UpdateAdDto,
     @CurrentUser() admin: User,
   ) {
-    return this.adsService.update(id, updateAdDto, admin._id.toString());
+    return this.adsService.update(id, updateAdDto, admin.id);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
   async delete(@Param('id') id: string, @CurrentUser() admin: User) {
-    return this.adsService.delete(id, admin._id.toString());
+    return this.adsService.delete(id, admin.id);
   }
 
   @Post(':id/impression')

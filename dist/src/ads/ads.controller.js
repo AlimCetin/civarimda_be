@@ -28,7 +28,7 @@ let AdsController = class AdsController {
         this.adsService = adsService;
     }
     async create(createAdDto, admin) {
-        return this.adsService.create(createAdDto, admin._id.toString());
+        return this.adsService.create(createAdDto, admin.id);
     }
     async findAll(status, page = 1, limit = 20) {
         return this.adsService.findAll(status, page, limit);
@@ -43,10 +43,10 @@ let AdsController = class AdsController {
         return this.adsService.findOne(id);
     }
     async update(id, updateAdDto, admin) {
-        return this.adsService.update(id, updateAdDto, admin._id.toString());
+        return this.adsService.update(id, updateAdDto, admin.id);
     }
     async delete(id, admin) {
-        return this.adsService.delete(id, admin._id.toString());
+        return this.adsService.delete(id, admin.id);
     }
     async recordImpression(id) {
         await this.adsService.recordImpression(id);

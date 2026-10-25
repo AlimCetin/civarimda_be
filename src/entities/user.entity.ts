@@ -1,30 +1,20 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  BeforeInsert,
   AfterLoad,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 @Entity('users')
 @Index(['fullName'])
 @Index(['role'])
 @Index(['isPermanentlyBanned', 'bannedUntil'])
 export class User {
-  @PrimaryColumn('varchar', { length: 64 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  get _id(): string {
-    return this.id;
-  }
-
-  set _id(val: string) {
-    if (val) this.id = val;
-  }
 
   @Column({ type: 'varchar', length: 255 })
   fullName: string;
@@ -83,16 +73,8 @@ export class User {
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 
-  @BeforeInsert()
-  generateId() {
-    if (!this.id) {
-      this.id = randomUUID();
-    }
-  }
-
   @AfterLoad()
   populateVirtuals() {
-    (this as any)._id = this.id;
     if (!this.followers) this.followers = [];
     if (!this.following) this.following = [];
     if (!this.blockedUsers) this.blockedUsers = [];
@@ -104,6 +86,7 @@ export class User {
   toObject() {
     return {
       ...this,
+      id: this.id,
       _id: this.id,
       followers: this.followers || [],
       following: this.following || [],

@@ -27,7 +27,7 @@ export class ReportsController {
   @Post()
   @UseGuards(JwtAuthGuard)
   async create(@Body() createReportDto: CreateReportDto, @CurrentUser() user: User) {
-    return this.reportsService.create(user._id.toString(), createReportDto);
+    return this.reportsService.create(user.id, createReportDto);
   }
 
   @Get()
@@ -61,7 +61,7 @@ export class ReportsController {
     @Body() updateReportDto: UpdateReportDto,
     @CurrentUser() admin: User,
   ) {
-    return this.reportsService.update(id, updateReportDto, admin._id.toString());
+    return this.reportsService.update(id, updateReportDto, admin.id);
   }
 }
 

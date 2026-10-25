@@ -11,40 +11,25 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Comment = void 0;
 const typeorm_1 = require("typeorm");
-const crypto_1 = require("crypto");
 let Comment = class Comment {
     id;
-    get _id() {
-        return this.id;
-    }
-    set _id(val) {
-        if (val)
-            this.id = val;
-    }
     postId;
     userId;
     text;
     deletedAt;
     createdAt;
     updatedAt;
-    generateId() {
-        if (!this.id) {
-            this.id = (0, crypto_1.randomUUID)();
-        }
-    }
-    populateVirtuals() {
-        this._id = this.id;
-    }
     toObject() {
         return {
             ...this,
+            id: this.id,
             _id: this.id,
         };
     }
 };
 exports.Comment = Comment;
 __decorate([
-    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
     __metadata("design:type", String)
 ], Comment.prototype, "id", void 0);
 __decorate([
@@ -71,18 +56,6 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
     __metadata("design:type", Date)
 ], Comment.prototype, "updatedAt", void 0);
-__decorate([
-    (0, typeorm_1.BeforeInsert)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], Comment.prototype, "generateId", null);
-__decorate([
-    (0, typeorm_1.AfterLoad)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], Comment.prototype, "populateVirtuals", null);
 exports.Comment = Comment = __decorate([
     (0, typeorm_1.Entity)('comments'),
     (0, typeorm_1.Index)(['postId', 'createdAt']),

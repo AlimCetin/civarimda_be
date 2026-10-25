@@ -11,16 +11,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = void 0;
 const typeorm_1 = require("typeorm");
-const crypto_1 = require("crypto");
 let User = class User {
     id;
-    get _id() {
-        return this.id;
-    }
-    set _id(val) {
-        if (val)
-            this.id = val;
-    }
     fullName;
     avatar;
     bio;
@@ -40,13 +32,7 @@ let User = class User {
     deletedAt;
     createdAt;
     updatedAt;
-    generateId() {
-        if (!this.id) {
-            this.id = (0, crypto_1.randomUUID)();
-        }
-    }
     populateVirtuals() {
-        this._id = this.id;
         if (!this.followers)
             this.followers = [];
         if (!this.following)
@@ -63,6 +49,7 @@ let User = class User {
     toObject() {
         return {
             ...this,
+            id: this.id,
             _id: this.id,
             followers: this.followers || [],
             following: this.following || [],
@@ -75,7 +62,7 @@ let User = class User {
 };
 exports.User = User;
 __decorate([
-    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
     __metadata("design:type", String)
 ], User.prototype, "id", void 0);
 __decorate([
@@ -154,12 +141,6 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
     __metadata("design:type", Date)
 ], User.prototype, "updatedAt", void 0);
-__decorate([
-    (0, typeorm_1.BeforeInsert)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], User.prototype, "generateId", null);
 __decorate([
     (0, typeorm_1.AfterLoad)(),
     __metadata("design:type", Function),

@@ -1,28 +1,18 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  BeforeInsert,
   AfterLoad,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 @Entity('conversations')
 @Index(['lastMessageAt'])
 export class Conversation {
-  @PrimaryColumn('varchar', { length: 64 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  get _id(): string {
-    return this.id;
-  }
-
-  set _id(val: string) {
-    if (val) this.id = val;
-  }
 
   @Column({ type: 'text', array: true, default: '{}' })
   participants: string[];
@@ -42,22 +32,15 @@ export class Conversation {
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 
-  @BeforeInsert()
-  generateId() {
-    if (!this.id) {
-      this.id = randomUUID();
-    }
-  }
-
   @AfterLoad()
   populateVirtuals() {
-    (this as any)._id = this.id;
     if (!this.participants) this.participants = [];
   }
 
   toObject() {
     return {
       ...this,
+      id: this.id,
       _id: this.id,
       participants: this.participants || [],
     };

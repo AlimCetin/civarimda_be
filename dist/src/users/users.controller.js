@@ -30,8 +30,8 @@ let UsersController = class UsersController {
         const userObj = user.toObject();
         return {
             ...userObj,
-            id: userObj._id.toString(),
-            _id: userObj._id.toString(),
+            id: user.id,
+            _id: user.id,
             followerCount: userObj.followers?.length || 0,
             followingCount: userObj.following?.length || 0,
         };
@@ -40,71 +40,71 @@ let UsersController = class UsersController {
         return this.usersService.search(query);
     }
     async getBlocked(user) {
-        return this.usersService.getBlockedUsers(user._id.toString());
+        return this.usersService.getBlockedUsers(user.id);
     }
     async getUser(userId, user) {
         if (userId === 'current-user-id' || userId === 'me') {
             const userObj = user.toObject();
             return {
                 ...userObj,
-                id: userObj._id.toString(),
-                _id: userObj._id.toString(),
+                id: user.id,
+                _id: user.id,
                 followerCount: userObj.followers?.length || 0,
                 followingCount: userObj.following?.length || 0,
             };
         }
-        if (!id_util_1.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        return this.usersService.findById(userId, user._id.toString());
+        return this.usersService.findById(userId, user.id);
     }
     async getFollowers(userId, user) {
         if (userId === 'current-user-id' || userId === 'me') {
-            return this.usersService.getFollowers(user._id.toString(), user._id.toString());
+            return this.usersService.getFollowers(user.id, user.id);
         }
-        if (!id_util_1.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        return this.usersService.getFollowers(userId, user._id.toString());
+        return this.usersService.getFollowers(userId, user.id);
     }
     async getFollowing(userId, user) {
         if (userId === 'current-user-id' || userId === 'me') {
-            return this.usersService.getFollowing(user._id.toString(), user._id.toString());
+            return this.usersService.getFollowing(user.id, user.id);
         }
-        if (!id_util_1.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        return this.usersService.getFollowing(userId, user._id.toString());
+        return this.usersService.getFollowing(userId, user.id);
     }
     async follow(userId, user) {
-        if (!id_util_1.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        return this.usersService.follow(userId, user._id.toString());
+        return this.usersService.follow(userId, user.id);
     }
     async unfollow(userId, user) {
-        if (!id_util_1.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        return this.usersService.unfollow(userId, user._id.toString());
+        return this.usersService.unfollow(userId, user.id);
     }
     async block(userId, user) {
-        if (!id_util_1.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        return this.usersService.block(userId, user._id.toString());
+        return this.usersService.block(userId, user.id);
     }
     async unblock(userId, user) {
-        if (!id_util_1.Types.ObjectId.isValid(userId)) {
+        if (!(0, id_util_1.isValidId)(userId)) {
             throw new common_1.BadRequestException('Invalid user ID format');
         }
-        return this.usersService.unblock(userId, user._id.toString());
+        return this.usersService.unblock(userId, user.id);
     }
     async updateProfile(data, user) {
-        return this.usersService.updateProfile(user._id.toString(), data);
+        return this.usersService.updateProfile(user.id, data);
     }
     async deleteAccount(user) {
-        await this.usersService.deleteAccount(user._id.toString());
+        await this.usersService.deleteAccount(user.id);
         return { message: 'Account deleted successfully' };
     }
 };

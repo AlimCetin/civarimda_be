@@ -16,7 +16,8 @@ let OwnershipGuard = class OwnershipGuard {
         if (!user || !resourceUserId) {
             throw new common_1.ForbiddenException('Access denied');
         }
-        if (user._id.toString() !== resourceUserId) {
+        const currentUserId = user.id || (user._id && user._id.toString());
+        if (currentUserId !== resourceUserId) {
             throw new common_1.ForbiddenException('You can only access your own resources');
         }
         return true;

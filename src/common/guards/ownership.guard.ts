@@ -12,7 +12,8 @@ export class OwnershipGuard implements CanActivate {
       throw new ForbiddenException('Access denied');
     }
 
-    if (user._id.toString() !== resourceUserId) {
+    const currentUserId = user.id || (user._id && user._id.toString());
+    if (currentUserId !== resourceUserId) {
       throw new ForbiddenException('You can only access your own resources');
     }
 

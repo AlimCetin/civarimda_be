@@ -5,8 +5,6 @@ export declare enum AppealStatus {
 }
 export declare class Appeal {
     id: string;
-    get _id(): string;
-    set _id(val: string);
     userId: string;
     banLogId: string;
     reason: string;
@@ -21,9 +19,9 @@ export declare class Appeal {
     }>;
     createdAt: Date;
     updatedAt: Date;
-    generateId(): void;
     populateVirtuals(): void;
     toObject(): this & {
+        id: string;
         _id: string;
         conversation: {
             senderId: string;

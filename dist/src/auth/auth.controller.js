@@ -39,10 +39,10 @@ let AuthController = class AuthController {
         return user;
     }
     async changePassword(dto, user) {
-        return this.authService.changePassword(user._id.toString(), dto.currentPassword, dto.newPassword);
+        return this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
     }
     async logout(user) {
-        return this.authService.logout(user._id.toString());
+        return this.authService.logout(user.id);
     }
 };
 exports.AuthController = AuthController;

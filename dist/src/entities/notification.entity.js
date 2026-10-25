@@ -11,16 +11,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Notification = void 0;
 const typeorm_1 = require("typeorm");
-const crypto_1 = require("crypto");
 let Notification = class Notification {
     id;
-    get _id() {
-        return this.id;
-    }
-    set _id(val) {
-        if (val)
-            this.id = val;
-    }
     userId;
     fromUserId;
     type;
@@ -31,24 +23,17 @@ let Notification = class Notification {
     deletedAt;
     createdAt;
     updatedAt;
-    generateId() {
-        if (!this.id) {
-            this.id = (0, crypto_1.randomUUID)();
-        }
-    }
-    populateVirtuals() {
-        this._id = this.id;
-    }
     toObject() {
         return {
             ...this,
+            id: this.id,
             _id: this.id,
         };
     }
 };
 exports.Notification = Notification;
 __decorate([
-    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
     __metadata("design:type", String)
 ], Notification.prototype, "id", void 0);
 __decorate([
@@ -91,18 +76,6 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
     __metadata("design:type", Date)
 ], Notification.prototype, "updatedAt", void 0);
-__decorate([
-    (0, typeorm_1.BeforeInsert)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], Notification.prototype, "generateId", null);
-__decorate([
-    (0, typeorm_1.AfterLoad)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], Notification.prototype, "populateVirtuals", null);
 exports.Notification = Notification = __decorate([
     (0, typeorm_1.Entity)('notifications'),
     (0, typeorm_1.Index)(['userId', 'createdAt']),

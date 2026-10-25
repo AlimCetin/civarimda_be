@@ -39,12 +39,12 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   async changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: User) {
-    return this.authService.changePassword(user._id.toString(), dto.currentPassword, dto.newPassword);
+    return this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   async logout(@CurrentUser() user: User) {
-    return this.authService.logout(user._id.toString());
+    return this.authService.logout(user.id);
   }
 }

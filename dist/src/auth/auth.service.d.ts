@@ -16,6 +16,7 @@ export declare class AuthService {
     constructor(userRepository: Repository<User>, credentialsRepository: Repository<UserCredentials>, jwtService: JwtService, configService: ConfigService, logger: AppLoggerService, redisService: RedisService);
     register(dto: RegisterDto): Promise<{
         user: (User & {
+            id: string;
             _id: string;
             followers: string[];
             following: string[];
@@ -50,6 +51,7 @@ export declare class AuthService {
     }>;
     login(dto: LoginDto): Promise<{
         user: (User & {
+            id: string;
             _id: string;
             followers: string[];
             following: string[];

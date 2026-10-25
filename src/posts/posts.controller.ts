@@ -8,7 +8,7 @@ import { User } from '../entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { AddCommentDto } from './dto/add-comment.dto';
 import { UpdateVisibilityDto } from './dto/update-visibility.dto';
-import { Types } from '../common/utils/id.util';
+import { isValidId } from '../common/utils/id.util';
 import { multerConfig } from '../config/multer.config';
 
 @Controller('posts')
@@ -56,7 +56,7 @@ export class PostsController {
     }
 
     return this.postsService.create(
-      user._id.toString(),
+      user.id,
       body.image,
       body.caption || '',
       (body.isPrivate as any) === 'true' || body.isPrivate === true || false, // FormData string olarak gelebilir
@@ -72,10 +72,10 @@ export class PostsController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    if (!Types.ObjectId.isValid(postId)) {
+    if (!isValidId(postId)) {
       throw new BadRequestException('Invalid post ID format');
     }
-    return this.postsService.getLikes(postId, user._id.toString(), page, limit);
+    return this.postsService.getLikes(postId, user.id, page, limit);
   }
 
   @Get('feed')
@@ -84,7 +84,7 @@ export class PostsController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.postsService.getFeed(user._id.toString(), page, limit);
+    return this.postsService.getFeed(user.id, page, limit);
   }
 
   @Get('user/:userId')
@@ -97,25 +97,24 @@ export class PostsController {
   ) {
     // Handle special values for current user
     if (userId === 'current-user-id' || userId === 'me') {
-      return this.postsService.getUserPosts(user._id.toString(), user._id.toString(), page, limit);
+      return this.postsService.getUserPosts(user.id, user.id, page, limit);
     }
 
-    // Validate ObjectId format
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
 
-    return this.postsService.getUserPosts(userId, user._id.toString(), page, limit);
+    return this.postsService.getUserPosts(userId, user.id, page, limit);
   }
 
   @Post(':postId/like')
   async like(@Param('postId') postId: string, @CurrentUser() user: User) {
-    return this.postsService.like(postId, user._id.toString());
+    return this.postsService.like(postId, user.id);
   }
 
   @Delete(':postId/like')
   async unlike(@Param('postId') postId: string, @CurrentUser() user: User) {
-    return this.postsService.unlike(postId, user._id.toString());
+    return this.postsService.unlike(postId, user.id);
   }
 
   @Get(':postId/comments')
@@ -129,17 +128,17 @@ export class PostsController {
 
   @Post(':postId/comments')
   async addComment(@Param('postId') postId: string, @Body() body: AddCommentDto, @CurrentUser() user: User) {
-    return this.postsService.addComment(postId, user._id.toString(), body.text);
+    return this.postsService.addComment(postId, user.id, body.text);
   }
 
   @Post(':postId/save')
   async savePost(@Param('postId') postId: string, @CurrentUser() user: User) {
-    return this.postsService.savePost(postId, user._id.toString());
+    return this.postsService.savePost(postId, user.id);
   }
 
   @Delete(':postId/save')
   async unsavePost(@Param('postId') postId: string, @CurrentUser() user: User) {
-    return this.postsService.unsavePost(postId, user._id.toString());
+    return this.postsService.unsavePost(postId, user.id);
   }
 
   @Get('saved')
@@ -148,12 +147,12 @@ export class PostsController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.postsService.getSavedPosts(user._id.toString(), page, limit);
+    return this.postsService.getSavedPosts(user.id, page, limit);
   }
 
   @Get(':postId/share')
   async getPostForShare(@Param('postId') postId: string, @CurrentUser() user: User) {
-    return this.postsService.sharePost(postId, user._id.toString(), '');
+    return this.postsService.sharePost(postId, user.id, '');
   }
 
   @Get(':postId')
@@ -161,26 +160,26 @@ export class PostsController {
     @Param('postId') postId: string,
     @CurrentUser() user: User,
   ) {
-    if (!Types.ObjectId.isValid(postId)) {
+    if (!isValidId(postId)) {
       throw new BadRequestException('Invalid post ID format');
     }
-    return this.postsService.getPostById(postId, user._id.toString());
+    return this.postsService.getPostById(postId, user.id);
   }
 
   @Post(':postId/hide')
   async hidePost(@Param('postId') postId: string, @CurrentUser() user: User) {
-    if (!Types.ObjectId.isValid(postId)) {
+    if (!isValidId(postId)) {
       throw new BadRequestException('Invalid post ID format');
     }
-    return this.postsService.hidePost(postId, user._id.toString());
+    return this.postsService.hidePost(postId, user.id);
   }
 
   @Post(':postId/unhide')
   async unhidePost(@Param('postId') postId: string, @CurrentUser() user: User) {
-    if (!Types.ObjectId.isValid(postId)) {
+    if (!isValidId(postId)) {
       throw new BadRequestException('Invalid post ID format');
     }
-    return this.postsService.unhidePost(postId, user._id.toString());
+    return this.postsService.unhidePost(postId, user.id);
   }
 
   @Put(':postId/visibility')
@@ -189,17 +188,17 @@ export class PostsController {
     @Body() body: UpdateVisibilityDto,
     @CurrentUser() user: User,
   ) {
-    if (!Types.ObjectId.isValid(postId)) {
+    if (!isValidId(postId)) {
       throw new BadRequestException('Invalid post ID format');
     }
-    return this.postsService.updateVisibility(postId, user._id.toString(), body);
+    return this.postsService.updateVisibility(postId, user.id, body);
   }
 
   @Delete(':postId')
   async deletePost(@Param('postId') postId: string, @CurrentUser() user: User) {
-    if (!Types.ObjectId.isValid(postId)) {
+    if (!isValidId(postId)) {
       throw new BadRequestException('Invalid post ID format');
     }
-    return this.postsService.deletePost(postId, user._id.toString());
+    return this.postsService.deletePost(postId, user.id);
   }
 }

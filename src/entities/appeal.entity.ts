@@ -1,14 +1,12 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  BeforeInsert,
   AfterLoad,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 export enum AppealStatus {
   PENDING = 'pending',
@@ -21,16 +19,8 @@ export enum AppealStatus {
 @Index(['reviewedBy'])
 @Index(['status', 'createdAt'])
 export class Appeal {
-  @PrimaryColumn('varchar', { length: 64 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  get _id(): string {
-    return this.id;
-  }
-
-  set _id(val: string) {
-    if (val) this.id = val;
-  }
 
   @Column({ type: 'varchar', length: 64 })
   userId: string;
@@ -66,22 +56,15 @@ export class Appeal {
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 
-  @BeforeInsert()
-  generateId() {
-    if (!this.id) {
-      this.id = randomUUID();
-    }
-  }
-
   @AfterLoad()
   populateVirtuals() {
-    (this as any)._id = this.id;
     if (!this.conversation) this.conversation = [];
   }
 
   toObject() {
     return {
       ...this,
+      id: this.id,
       _id: this.id,
       conversation: this.conversation || [],
     };

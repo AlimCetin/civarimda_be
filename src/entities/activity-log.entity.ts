@@ -1,14 +1,12 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  BeforeInsert,
   AfterLoad,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 export enum ActivityType {
   USER_BANNED = 'user_banned',
@@ -30,16 +28,8 @@ export enum ActivityType {
 @Index(['activityType', 'createdAt'])
 @Index(['createdAt'])
 export class ActivityLog {
-  @PrimaryColumn('varchar', { length: 64 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  get _id(): string {
-    return this.id;
-  }
-
-  set _id(val: string) {
-    if (val) this.id = val;
-  }
 
   @Column({ type: 'varchar', length: 64 })
   adminId: string;
@@ -71,22 +61,15 @@ export class ActivityLog {
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 
-  @BeforeInsert()
-  generateId() {
-    if (!this.id) {
-      this.id = randomUUID();
-    }
-  }
-
   @AfterLoad()
   populateVirtuals() {
-    (this as any)._id = this.id;
     if (!this.metadata) this.metadata = {};
   }
 
   toObject() {
     return {
       ...this,
+      id: this.id,
       _id: this.id,
       metadata: this.metadata || {},
     };

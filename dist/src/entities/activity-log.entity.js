@@ -11,7 +11,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ActivityLog = exports.ActivityType = void 0;
 const typeorm_1 = require("typeorm");
-const crypto_1 = require("crypto");
 var ActivityType;
 (function (ActivityType) {
     ActivityType["USER_BANNED"] = "user_banned";
@@ -28,13 +27,6 @@ var ActivityType;
 })(ActivityType || (exports.ActivityType = ActivityType = {}));
 let ActivityLog = class ActivityLog {
     id;
-    get _id() {
-        return this.id;
-    }
-    set _id(val) {
-        if (val)
-            this.id = val;
-    }
     adminId;
     activityType;
     targetUserId;
@@ -45,19 +37,14 @@ let ActivityLog = class ActivityLog {
     metadata;
     createdAt;
     updatedAt;
-    generateId() {
-        if (!this.id) {
-            this.id = (0, crypto_1.randomUUID)();
-        }
-    }
     populateVirtuals() {
-        this._id = this.id;
         if (!this.metadata)
             this.metadata = {};
     }
     toObject() {
         return {
             ...this,
+            id: this.id,
             _id: this.id,
             metadata: this.metadata || {},
         };
@@ -65,7 +52,7 @@ let ActivityLog = class ActivityLog {
 };
 exports.ActivityLog = ActivityLog;
 __decorate([
-    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
     __metadata("design:type", String)
 ], ActivityLog.prototype, "id", void 0);
 __decorate([
@@ -108,12 +95,6 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
     __metadata("design:type", Date)
 ], ActivityLog.prototype, "updatedAt", void 0);
-__decorate([
-    (0, typeorm_1.BeforeInsert)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], ActivityLog.prototype, "generateId", null);
 __decorate([
     (0, typeorm_1.AfterLoad)(),
     __metadata("design:type", Function),

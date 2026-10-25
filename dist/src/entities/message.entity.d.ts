@@ -1,7 +1,5 @@
 export declare class Message {
     id: string;
-    get _id(): string;
-    set _id(val: string);
     conversationId: string;
     senderId: string;
     text: string;
@@ -9,9 +7,8 @@ export declare class Message {
     deletedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
-    generateId(): void;
-    populateVirtuals(): void;
     toObject(): this & {
+        id: string;
         _id: string;
     };
 }

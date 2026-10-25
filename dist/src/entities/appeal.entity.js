@@ -11,7 +11,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Appeal = exports.AppealStatus = void 0;
 const typeorm_1 = require("typeorm");
-const crypto_1 = require("crypto");
 var AppealStatus;
 (function (AppealStatus) {
     AppealStatus["PENDING"] = "pending";
@@ -20,13 +19,6 @@ var AppealStatus;
 })(AppealStatus || (exports.AppealStatus = AppealStatus = {}));
 let Appeal = class Appeal {
     id;
-    get _id() {
-        return this.id;
-    }
-    set _id(val) {
-        if (val)
-            this.id = val;
-    }
     userId;
     banLogId;
     reason;
@@ -37,19 +29,14 @@ let Appeal = class Appeal {
     conversation;
     createdAt;
     updatedAt;
-    generateId() {
-        if (!this.id) {
-            this.id = (0, crypto_1.randomUUID)();
-        }
-    }
     populateVirtuals() {
-        this._id = this.id;
         if (!this.conversation)
             this.conversation = [];
     }
     toObject() {
         return {
             ...this,
+            id: this.id,
             _id: this.id,
             conversation: this.conversation || [],
         };
@@ -57,7 +44,7 @@ let Appeal = class Appeal {
 };
 exports.Appeal = Appeal;
 __decorate([
-    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
     __metadata("design:type", String)
 ], Appeal.prototype, "id", void 0);
 __decorate([
@@ -100,12 +87,6 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)({ type: 'timestamp with time zone' }),
     __metadata("design:type", Date)
 ], Appeal.prototype, "updatedAt", void 0);
-__decorate([
-    (0, typeorm_1.BeforeInsert)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], Appeal.prototype, "generateId", null);
 __decorate([
     (0, typeorm_1.AfterLoad)(),
     __metadata("design:type", Function),

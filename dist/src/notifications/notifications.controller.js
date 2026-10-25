@@ -24,18 +24,18 @@ let NotificationsController = class NotificationsController {
         this.notificationsService = notificationsService;
     }
     async getUnreadCount(user) {
-        const count = await this.notificationsService.getUnreadCount(user._id.toString());
+        const count = await this.notificationsService.getUnreadCount(user.id);
         return { count };
     }
     async getNotifications(user, page, limit) {
-        return this.notificationsService.getUserNotifications(user._id.toString(), page, limit);
+        return this.notificationsService.getUserNotifications(user.id, page, limit);
     }
     async markAsRead(id, user) {
-        await this.notificationsService.markAsRead(id, user._id.toString());
+        await this.notificationsService.markAsRead(id, user.id);
         return { message: 'Marked as read' };
     }
     async markAllAsRead(user) {
-        await this.notificationsService.markAllAsRead(user._id.toString());
+        await this.notificationsService.markAllAsRead(user.id);
         return { message: 'All marked as read' };
     }
 };

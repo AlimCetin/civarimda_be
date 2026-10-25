@@ -5,7 +5,7 @@ import { NotBlockedGuard } from '../common/guards/not-blocked.guard';
 import { CurrentUser } from '../common/decorators/user.decorator';
 import { User } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { Types } from '../common/utils/id.util';
+import { isValidId } from '../common/utils/id.util';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -17,8 +17,8 @@ export class UsersController {
     const userObj = user.toObject();
     return {
       ...userObj,
-      id: userObj._id.toString(),
-      _id: userObj._id.toString(),
+      id: user.id,
+      _id: user.id,
       followerCount: userObj.followers?.length || 0,
       followingCount: userObj.following?.length || 0,
     };
@@ -31,7 +31,7 @@ export class UsersController {
 
   @Get('blocked/list')
   async getBlocked(@CurrentUser() user: User) {
-    return this.usersService.getBlockedUsers(user._id.toString());
+    return this.usersService.getBlockedUsers(user.id);
   }
 
   @Get(':userId')
@@ -42,19 +42,18 @@ export class UsersController {
       const userObj = user.toObject();
       return {
         ...userObj,
-        id: userObj._id.toString(),
-        _id: userObj._id.toString(),
+        id: user.id,
+        _id: user.id,
         followerCount: userObj.followers?.length || 0,
         followingCount: userObj.following?.length || 0,
       };
     }
 
-    // Validate ObjectId format
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
 
-    return this.usersService.findById(userId, user._id.toString());
+    return this.usersService.findById(userId, user.id);
   }
 
   @Get(':userId/followers')
@@ -62,15 +61,14 @@ export class UsersController {
   async getFollowers(@Param('userId') userId: string, @CurrentUser() user: User) {
     // Handle special values for current user
     if (userId === 'current-user-id' || userId === 'me') {
-      return this.usersService.getFollowers(user._id.toString(), user._id.toString());
+      return this.usersService.getFollowers(user.id, user.id);
     }
 
-    // Validate ObjectId format
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
 
-    return this.usersService.getFollowers(userId, user._id.toString());
+    return this.usersService.getFollowers(userId, user.id);
   }
 
   @Get(':userId/following')
@@ -78,59 +76,58 @@ export class UsersController {
   async getFollowing(@Param('userId') userId: string, @CurrentUser() user: User) {
     // Handle special values for current user
     if (userId === 'current-user-id' || userId === 'me') {
-      return this.usersService.getFollowing(user._id.toString(), user._id.toString());
+      return this.usersService.getFollowing(user.id, user.id);
     }
 
-    // Validate ObjectId format
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
 
-    return this.usersService.getFollowing(userId, user._id.toString());
+    return this.usersService.getFollowing(userId, user.id);
   }
 
   @Post(':userId/follow')
   @UseGuards(NotBlockedGuard)
   async follow(@Param('userId') userId: string, @CurrentUser() user: User) {
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
-    return this.usersService.follow(userId, user._id.toString());
+    return this.usersService.follow(userId, user.id);
   }
 
   @Delete(':userId/follow')
   async unfollow(@Param('userId') userId: string, @CurrentUser() user: User) {
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
-    return this.usersService.unfollow(userId, user._id.toString());
+    return this.usersService.unfollow(userId, user.id);
   }
 
   @Post(':userId/block')
   async block(@Param('userId') userId: string, @CurrentUser() user: User) {
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
-    return this.usersService.block(userId, user._id.toString());
+    return this.usersService.block(userId, user.id);
   }
 
   @Delete(':userId/block')
   async unblock(@Param('userId') userId: string, @CurrentUser() user: User) {
-    if (!Types.ObjectId.isValid(userId)) {
+    if (!isValidId(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
-    return this.usersService.unblock(userId, user._id.toString());
+    return this.usersService.unblock(userId, user.id);
   }
 
   @Put('profile')
   async updateProfile(@Body() data: UpdateProfileDto, @CurrentUser() user: User) {
     // Only allow users to update their own profile
-    return this.usersService.updateProfile(user._id.toString(), data);
+    return this.usersService.updateProfile(user.id, data);
   }
 
   @Delete('account')
   async deleteAccount(@CurrentUser() user: User) {
-    await this.usersService.deleteAccount(user._id.toString());
+    await this.usersService.deleteAccount(user.id);
     return { message: 'Account deleted successfully' };
   }
 }

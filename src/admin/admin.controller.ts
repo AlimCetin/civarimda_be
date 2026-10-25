@@ -57,13 +57,13 @@ export class AdminController {
     @Body() banUserDto: BanUserDto,
     @CurrentUser() admin: User,
   ) {
-    return this.adminService.banUser(id, admin._id.toString(), banUserDto);
+    return this.adminService.banUser(id, admin.id, banUserDto);
   }
 
   @Post('users/:id/unban')
   @UseGuards(JwtAuthGuard, ModeratorGuard)
   async unbanUser(@Param('id') id: string, @CurrentUser() admin: User) {
-    return this.adminService.unbanUser(id, admin._id.toString());
+    return this.adminService.unbanUser(id, admin.id);
   }
 
   @Post('users/:id/warn')
@@ -73,7 +73,7 @@ export class AdminController {
     @Body() body: { reason?: string },
     @CurrentUser() admin: User,
   ) {
-    return this.adminService.warnUser(id, admin._id.toString(), body.reason);
+    return this.adminService.warnUser(id, admin.id, body.reason);
   }
 
   @Put('users/:id/role')
@@ -83,7 +83,7 @@ export class AdminController {
     @Body() changeRoleDto: ChangeRoleDto,
     @CurrentUser() admin: User,
   ) {
-    return this.adminService.changeUserRole(id, admin._id.toString(), changeRoleDto);
+    return this.adminService.changeUserRole(id, admin.id, changeRoleDto);
   }
 
   @Delete('posts/:id')
@@ -93,7 +93,7 @@ export class AdminController {
     @Body() body: { reason?: string },
     @CurrentUser() admin: User,
   ) {
-    return this.adminService.deletePost(id, admin._id.toString(), body.reason);
+    return this.adminService.deletePost(id, admin.id, body.reason);
   }
 
   @Get('activity-logs')

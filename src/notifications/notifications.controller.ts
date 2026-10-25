@@ -11,7 +11,7 @@ export class NotificationsController {
 
   @Get('unread/count')
   async getUnreadCount(@CurrentUser() user: User) {
-    const count = await this.notificationsService.getUnreadCount(user._id.toString());
+    const count = await this.notificationsService.getUnreadCount(user.id);
     return { count };
   }
 
@@ -21,18 +21,18 @@ export class NotificationsController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.notificationsService.getUserNotifications(user._id.toString(), page, limit);
+    return this.notificationsService.getUserNotifications(user.id, page, limit);
   }
 
   @Put(':id/read')
   async markAsRead(@Param('id') id: string, @CurrentUser() user: User) {
-    await this.notificationsService.markAsRead(id, user._id.toString());
+    await this.notificationsService.markAsRead(id, user.id);
     return { message: 'Marked as read' };
   }
 
   @Put('read-all')
   async markAllAsRead(@CurrentUser() user: User) {
-    await this.notificationsService.markAllAsRead(user._id.toString());
+    await this.notificationsService.markAllAsRead(user.id);
     return { message: 'All marked as read' };
   }
 }

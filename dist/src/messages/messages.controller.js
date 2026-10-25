@@ -24,20 +24,20 @@ let MessagesController = class MessagesController {
         this.messagesService = messagesService;
     }
     async getConversations(user, page, limit) {
-        return this.messagesService.getConversations(user._id.toString(), page, limit);
+        return this.messagesService.getConversations(user.id, page, limit);
     }
     async getMessages(conversationId, user, page, limit) {
-        return this.messagesService.getMessages(conversationId, user._id.toString(), page, limit);
+        return this.messagesService.getMessages(conversationId, user.id, page, limit);
     }
     async sendMessage(body, user) {
-        return this.messagesService.sendMessage(user._id.toString(), body.receiverId, body.text);
+        return this.messagesService.sendMessage(user.id, body.receiverId, body.text);
     }
     async markAsRead(conversationId, user) {
-        const result = await this.messagesService.markAsRead(conversationId, user._id.toString());
+        const result = await this.messagesService.markAsRead(conversationId, user.id);
         return { message: 'Marked as read', modifiedCount: result.modifiedCount };
     }
     async getUnreadCount(user) {
-        const count = await this.messagesService.getUnreadMessagesCount(user._id.toString());
+        const count = await this.messagesService.getUnreadMessagesCount(user.id);
         return { count };
     }
 };

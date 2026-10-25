@@ -7,6 +7,7 @@ export declare class AuthController {
     constructor(authService: AuthService);
     register(dto: RegisterDto): Promise<{
         user: (User & {
+            id: string;
             _id: string;
             followers: string[];
             following: string[];
@@ -41,6 +42,7 @@ export declare class AuthController {
     }>;
     login(dto: LoginDto): Promise<{
         user: (User & {
+            id: string;
             _id: string;
             followers: string[];
             following: string[];

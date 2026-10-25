@@ -13,8 +13,6 @@ export declare enum ActivityType {
 }
 export declare class ActivityLog {
     id: string;
-    get _id(): string;
-    set _id(val: string);
     adminId: string;
     activityType: ActivityType;
     targetUserId: string | null;
@@ -25,9 +23,9 @@ export declare class ActivityLog {
     metadata: Record<string, any>;
     createdAt: Date;
     updatedAt: Date;
-    generateId(): void;
     populateVirtuals(): void;
     toObject(): this & {
+        id: string;
         _id: string;
         metadata: Record<string, any>;
     };

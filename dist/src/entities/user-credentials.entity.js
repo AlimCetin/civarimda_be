@@ -44,27 +44,16 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserCredentials = void 0;
 const typeorm_1 = require("typeorm");
-const crypto_1 = require("crypto");
 const bcrypt = __importStar(require("bcryptjs"));
 let UserCredentials = class UserCredentials {
     id;
-    get _id() {
-        return this.id;
-    }
-    set _id(val) {
-        if (val)
-            this.id = val;
-    }
     userId;
     email;
     password;
     refreshToken;
     createdAt;
     updatedAt;
-    async generateIdAndHashPassword() {
-        if (!this.id) {
-            this.id = (0, crypto_1.randomUUID)();
-        }
+    async hashPasswordOnInsert() {
         if (this.password && !this.password.startsWith('$2a$') && !this.password.startsWith('$2b$')) {
             this.password = await bcrypt.hash(this.password, 12);
         }
@@ -74,16 +63,13 @@ let UserCredentials = class UserCredentials {
             this.password = await bcrypt.hash(this.password, 12);
         }
     }
-    populateVirtuals() {
-        this._id = this.id;
-    }
     async comparePassword(candidatePassword) {
         return bcrypt.compare(candidatePassword, this.password);
     }
 };
 exports.UserCredentials = UserCredentials;
 __decorate([
-    (0, typeorm_1.PrimaryColumn)('varchar', { length: 64 }),
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
     __metadata("design:type", String)
 ], UserCredentials.prototype, "id", void 0);
 __decorate([
@@ -115,19 +101,13 @@ __decorate([
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
-], UserCredentials.prototype, "generateIdAndHashPassword", null);
+], UserCredentials.prototype, "hashPasswordOnInsert", null);
 __decorate([
     (0, typeorm_1.BeforeUpdate)(),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], UserCredentials.prototype, "hashPasswordOnUpdate", null);
-__decorate([
-    (0, typeorm_1.AfterLoad)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], UserCredentials.prototype, "populateVirtuals", null);
 exports.UserCredentials = UserCredentials = __decorate([
     (0, typeorm_1.Entity)('user_credentials'),
     (0, typeorm_1.Index)(['userId'], { unique: true }),

@@ -1,29 +1,19 @@
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  BeforeInsert,
   AfterLoad,
 } from 'typeorm';
-import { randomUUID } from 'crypto';
 
 @Entity('posts')
 @Index(['userId', 'createdAt'])
 @Index(['createdAt'])
 export class Post {
-  @PrimaryColumn('varchar', { length: 64 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  get _id(): string {
-    return this.id;
-  }
-
-  set _id(val: string) {
-    if (val) this.id = val;
-  }
 
   @Column({ type: 'varchar', length: 64 })
   userId: string;
@@ -61,16 +51,8 @@ export class Post {
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 
-  @BeforeInsert()
-  generateId() {
-    if (!this.id) {
-      this.id = randomUUID();
-    }
-  }
-
   @AfterLoad()
   populateVirtuals() {
-    (this as any)._id = this.id;
     if (!this.likes) this.likes = [];
     if (!this.hiddenFromFollowers) this.hiddenFromFollowers = [];
   }
@@ -78,6 +60,7 @@ export class Post {
   toObject() {
     return {
       ...this,
+      id: this.id,
       _id: this.id,
       likes: this.likes || [],
       hiddenFromFollowers: this.hiddenFromFollowers || [],

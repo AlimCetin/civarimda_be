@@ -28,7 +28,7 @@ let ReportsController = class ReportsController {
         this.reportsService = reportsService;
     }
     async create(createReportDto, user) {
-        return this.reportsService.create(user._id.toString(), createReportDto);
+        return this.reportsService.create(user.id, createReportDto);
     }
     async findAll(status, type, priority, page = 1, limit = 20) {
         return this.reportsService.findAll(status, type, priority, page, limit);
@@ -40,7 +40,7 @@ let ReportsController = class ReportsController {
         return this.reportsService.findOne(id);
     }
     async update(id, updateReportDto, admin) {
-        return this.reportsService.update(id, updateReportDto, admin._id.toString());
+        return this.reportsService.update(id, updateReportDto, admin.id);
     }
 };
 exports.ReportsController = ReportsController;

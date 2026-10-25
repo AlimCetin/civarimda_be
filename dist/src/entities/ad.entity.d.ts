@@ -10,8 +10,6 @@ export declare enum AdStatus {
 }
 export declare class Ad {
     id: string;
-    get _id(): string;
-    set _id(val: string);
     title: string;
     type: AdType;
     mediaUrl: string;
@@ -29,9 +27,8 @@ export declare class Ad {
     spentAmount: number;
     createdAt: Date;
     updatedAt: Date;
-    generateId(): void;
-    populateVirtuals(): void;
     toObject(): this & {
+        id: string;
         _id: string;
     };
 }

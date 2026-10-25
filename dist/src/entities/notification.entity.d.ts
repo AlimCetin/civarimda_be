@@ -1,7 +1,5 @@
 export declare class Notification {
     id: string;
-    get _id(): string;
-    set _id(val: string);
     userId: string;
     fromUserId: string;
     type: string;
@@ -12,9 +10,8 @@ export declare class Notification {
     deletedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
-    generateId(): void;
-    populateVirtuals(): void;
     toObject(): this & {
+        id: string;
         _id: string;
     };
 }
