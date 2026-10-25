@@ -1,6 +1,7 @@
 export declare class User {
     id: string;
     get _id(): string;
+    set _id(val: string);
     fullName: string;
     avatar: string | null;
     bio: string;

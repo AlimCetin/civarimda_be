@@ -21,6 +21,10 @@ export class Post {
     return this.id;
   }
 
+  set _id(val: string) {
+    if (val) this.id = val;
+  }
+
   @Column({ type: 'varchar', length: 64 })
   userId: string;
 

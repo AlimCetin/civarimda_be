@@ -1,6 +1,7 @@
 export declare class UserCredentials {
     id: string;
     get _id(): string;
+    set _id(val: string);
     userId: string;
     email: string;
     password: string;

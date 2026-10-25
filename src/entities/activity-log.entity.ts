@@ -37,6 +37,10 @@ export class ActivityLog {
     return this.id;
   }
 
+  set _id(val: string) {
+    if (val) this.id = val;
+  }
+
   @Column({ type: 'varchar', length: 64 })
   adminId: string;
 

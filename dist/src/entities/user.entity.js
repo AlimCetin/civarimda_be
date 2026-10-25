@@ -17,6 +17,10 @@ let User = class User {
     get _id() {
         return this.id;
     }
+    set _id(val) {
+        if (val)
+            this.id = val;
+    }
     fullName;
     avatar;
     bio;

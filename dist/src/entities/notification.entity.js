@@ -17,6 +17,10 @@ let Notification = class Notification {
     get _id() {
         return this.id;
     }
+    set _id(val) {
+        if (val)
+            this.id = val;
+    }
     userId;
     fromUserId;
     type;

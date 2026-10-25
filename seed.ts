@@ -16,11 +16,14 @@ import { ActivityLog, ActivityType } from './src/entities/activity-log.entity';
 import { Appeal, AppealStatus } from './src/entities/appeal.entity';
 import * as bcrypt from 'bcryptjs';
 
+const isRemoteDb = !!process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost');
+
 const dataSource = new DataSource(
   process.env.DATABASE_URL
     ? {
         type: 'postgres',
         url: process.env.DATABASE_URL,
+        ssl: isRemoteDb ? { rejectUnauthorized: false } : false,
         entities: [
           User,
           UserCredentials,
@@ -155,7 +158,7 @@ async function seed() {
 
     console.log('Kullanıcılar oluşturuluyor...');
     const userData = [
-      { fullName: 'Ahmet Yılmaz', email: 'ali@a.com', role: 'admin' },
+      { fullName: 'Ali Çetin', email: 'ali@a.com', role: 'admin' },
       { fullName: 'Ayşe Demir', email: 'ali1@a.com', role: 'moderator' },
       { fullName: 'Mehmet Kaya', email: 'mehmet@example.com', role: 'user' },
       { fullName: 'Fatma Özkan', email: 'fatma@example.com', role: 'user' },

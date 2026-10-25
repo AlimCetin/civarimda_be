@@ -6,6 +6,7 @@ export declare enum AppealStatus {
 export declare class Appeal {
     id: string;
     get _id(): string;
+    set _id(val: string);
     userId: string;
     banLogId: string;
     reason: string;

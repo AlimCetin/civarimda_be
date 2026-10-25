@@ -14,6 +14,7 @@ export declare enum ActivityType {
 export declare class ActivityLog {
     id: string;
     get _id(): string;
+    set _id(val: string);
     adminId: string;
     activityType: ActivityType;
     targetUserId: string | null;

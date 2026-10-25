@@ -1,6 +1,7 @@
 export declare class Notification {
     id: string;
     get _id(): string;
+    set _id(val: string);
     userId: string;
     fromUserId: string;
     type: string;

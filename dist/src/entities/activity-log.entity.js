@@ -31,6 +31,10 @@ let ActivityLog = class ActivityLog {
     get _id() {
         return this.id;
     }
+    set _id(val) {
+        if (val)
+            this.id = val;
+    }
     adminId;
     activityType;
     targetUserId;

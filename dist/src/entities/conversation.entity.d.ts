@@ -1,6 +1,7 @@
 export declare class Conversation {
     id: string;
     get _id(): string;
+    set _id(val: string);
     participants: string[];
     lastMessage: string | null;
     lastMessageAt: Date;

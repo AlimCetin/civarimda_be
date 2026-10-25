@@ -20,6 +20,10 @@ export class Conversation {
     return this.id;
   }
 
+  set _id(val: string) {
+    if (val) this.id = val;
+  }
+
   @Column({ type: 'text', array: true, default: '{}' })
   participants: string[];
 

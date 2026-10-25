@@ -1,6 +1,7 @@
 export declare class Post {
     id: string;
     get _id(): string;
+    set _id(val: string);
     userId: string;
     image: string | null;
     video?: string | null;

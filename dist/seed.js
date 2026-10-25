@@ -49,10 +49,12 @@ const ad_entity_1 = require("./src/entities/ad.entity");
 const activity_log_entity_1 = require("./src/entities/activity-log.entity");
 const appeal_entity_1 = require("./src/entities/appeal.entity");
 const bcrypt = __importStar(require("bcryptjs"));
+const isRemoteDb = !!process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost');
 const dataSource = new typeorm_1.DataSource(process.env.DATABASE_URL
     ? {
         type: 'postgres',
         url: process.env.DATABASE_URL,
+        ssl: isRemoteDb ? { rejectUnauthorized: false } : false,
         entities: [
             user_entity_1.User,
             user_credentials_entity_1.UserCredentials,
@@ -175,7 +177,7 @@ async function seed() {
         console.log('✅ Temizlendi.');
         console.log('Kullanıcılar oluşturuluyor...');
         const userData = [
-            { fullName: 'Ahmet Yılmaz', email: 'ali@a.com', role: 'admin' },
+            { fullName: 'Ali Çetin', email: 'ali@a.com', role: 'admin' },
             { fullName: 'Ayşe Demir', email: 'ali1@a.com', role: 'moderator' },
             { fullName: 'Mehmet Kaya', email: 'mehmet@example.com', role: 'user' },
             { fullName: 'Fatma Özkan', email: 'fatma@example.com', role: 'user' },

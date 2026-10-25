@@ -17,6 +17,10 @@ let Conversation = class Conversation {
     get _id() {
         return this.id;
     }
+    set _id(val) {
+        if (val)
+            this.id = val;
+    }
     participants;
     lastMessage;
     lastMessageAt;

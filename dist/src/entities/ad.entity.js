@@ -29,6 +29,10 @@ let Ad = class Ad {
     get _id() {
         return this.id;
     }
+    set _id(val) {
+        if (val)
+            this.id = val;
+    }
     title;
     type;
     mediaUrl;

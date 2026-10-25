@@ -22,6 +22,10 @@ export class Message {
     return this.id;
   }
 
+  set _id(val: string) {
+    if (val) this.id = val;
+  }
+
   @Column({ type: 'varchar', length: 64 })
   conversationId: string;
 

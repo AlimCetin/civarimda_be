@@ -28,6 +28,7 @@ export declare enum ReportPriority {
 export declare class Report {
     id: string;
     get _id(): string;
+    set _id(val: string);
     reporterId: string;
     reportedId: string;
     type: ReportType;

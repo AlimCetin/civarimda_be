@@ -11,6 +11,7 @@ export declare enum AdStatus {
 export declare class Ad {
     id: string;
     get _id(): string;
+    set _id(val: string);
     title: string;
     type: AdType;
     mediaUrl: string;
