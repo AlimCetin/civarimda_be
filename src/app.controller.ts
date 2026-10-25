@@ -2,9 +2,9 @@ import { Controller, Get, Head, Query } from '@nestjs/common';
 
 @Controller()
 export class AppController {
-  // Mevcut uygulama versiyonu - bu değeri güncellemeyi unutmayın!
-  private readonly LATEST_VERSION = '1.0.0';
-  private readonly MIN_SUPPORTED_VERSION = '1.0.0'; // Minimum desteklenen versiyon
+  // Mevcut uygulama versiyonu - Google Play'deki en yeni versiyon
+  private readonly LATEST_VERSION = '1.0.2';
+  private readonly MIN_SUPPORTED_VERSION = '1.0.2'; // Minimum desteklenen versiyon (1.0.0 ve 1.0.1 gibi eski sürümler zorunlu güncellenir)
 
   @Get('health')
   @Head('health')
