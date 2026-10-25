@@ -92,6 +92,9 @@ async function bootstrap() {
             if (!origin || origin === 'null' || origin.startsWith('file://')) {
                 return callback(null, true);
             }
+            if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+                return callback(null, true);
+            }
             if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
                 return callback(null, true);
             }

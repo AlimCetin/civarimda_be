@@ -21,6 +21,8 @@ const notifications_module_1 = require("./notifications/notifications.module");
 const reports_module_1 = require("./reports/reports.module");
 const admin_module_1 = require("./admin/admin.module");
 const ads_module_1 = require("./ads/ads.module");
+const campaigns_module_1 = require("./campaigns/campaigns.module");
+const places_module_1 = require("./places/places.module");
 const app_controller_1 = require("./app.controller");
 const logger_service_1 = require("./common/logger/logger.service");
 const redis_module_1 = require("./common/redis/redis.module");
@@ -53,6 +55,8 @@ exports.AppModule = AppModule = __decorate([
             reports_module_1.ReportsModule,
             admin_module_1.AdminModule,
             ads_module_1.AdsModule,
+            campaigns_module_1.CampaignsModule,
+            places_module_1.PlacesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [

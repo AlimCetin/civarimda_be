@@ -12,6 +12,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { AdminModule } from './admin/admin.module';
 import { AdsModule } from './ads/ads.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
+import { PlacesModule } from './places/places.module';
 import { AppController } from './app.controller';
 import { AppLoggerService } from './common/logger/logger.service';
 import { RedisModule } from './common/redis/redis.module';
@@ -41,6 +43,8 @@ import { HealthModule } from './health/health.module';
     ReportsModule,
     AdminModule,
     AdsModule,
+    CampaignsModule,
+    PlacesModule,
   ],
   controllers: [AppController],
   providers: [
