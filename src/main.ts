@@ -111,6 +111,14 @@ async function bootstrap() {
     }),
   );
 
+  // Health check endpoints (hem /health hem /api/health isteklerini destekle)
+  app.use(['/health', '/api/health'], (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      return res.status(200).json({ status: 'OK', message: 'Civarımda API is running' });
+    }
+    next();
+  });
+
   app.setGlobalPrefix('api', {
     exclude: ['/', '/health', 'health'],
   });
