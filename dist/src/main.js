@@ -116,7 +116,7 @@ async function bootstrap() {
         },
     }));
     app.setGlobalPrefix('api', {
-        exclude: ['/', '/health', 'health'],
+        exclude: ['/'],
     });
     const port = configService.get('PORT', 3000);
     await app.listen(port);
