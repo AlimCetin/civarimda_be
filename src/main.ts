@@ -57,21 +57,38 @@ async function bootstrap() {
   app.use(compression());
 
   // CORS Configuration
-  const corsOrigins = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000,http://localhost:19006,http://10.0.2.2:3000').split(',');
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:19006',
+    'http://localhost:8081',
+    'http://10.0.2.2:3000',
+    'https://civarimda.onrender.com',
+  ];
+  const configuredOrigins = configService.get<string>('CORS_ORIGIN', '')
+    ? configService.get<string>('CORS_ORIGIN', '').split(',').map((o) => o.trim())
+    : [];
+  const allowedOrigins = [...defaultOrigins, ...configuredOrigins];
+
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
-      if (!origin) return callback(null, true);
-
-      if (corsOrigins.includes(origin) || corsOrigins.includes('*')) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
+      // 1. Mobil uygulamalar (React Native / Android / iOS) ve servis içi istekler:
+      // Tarayıcı olmadıkları için ya origin göndermezler ya da 'null' / 'file://' gönderirler.
+      if (!origin || origin === 'null' || origin.startsWith('file://')) {
+        return callback(null, true);
       }
+
+      // 2. İzinli web alan adları (Development ve Production web siteleri):
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // 3. Yabancı web sitelerinden gelen tarayıcı isteklerini standart olarak reddet
+      // (Sunucuyu 500 ile çökertmek yerine tarayıcı standartı olan false dönülür)
+      return callback(null, false);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   });
 
   // Request Size Limits (additional check, body parser handles the actual limit)
@@ -94,7 +111,9 @@ async function bootstrap() {
     }),
   );
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['/', '/health', 'health'],
+  });
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);

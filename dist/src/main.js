@@ -76,21 +76,30 @@ async function bootstrap() {
         },
     }));
     app.use((0, compression_1.default)());
-    const corsOrigins = configService.get('CORS_ORIGIN', 'http://localhost:3000,http://localhost:19006,http://10.0.2.2:3000').split(',');
+    const defaultOrigins = [
+        'http://localhost:3000',
+        'http://localhost:19006',
+        'http://localhost:8081',
+        'http://10.0.2.2:3000',
+        'https://civarimda.onrender.com',
+    ];
+    const configuredOrigins = configService.get('CORS_ORIGIN', '')
+        ? configService.get('CORS_ORIGIN', '').split(',').map((o) => o.trim())
+        : [];
+    const allowedOrigins = [...defaultOrigins, ...configuredOrigins];
     app.enableCors({
         origin: (origin, callback) => {
-            if (!origin)
+            if (!origin || origin === 'null' || origin.startsWith('file://')) {
                 return callback(null, true);
-            if (corsOrigins.includes(origin) || corsOrigins.includes('*')) {
-                callback(null, true);
             }
-            else {
-                callback(new Error('Not allowed by CORS'));
+            if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+                return callback(null, true);
             }
+            return callback(null, false);
         },
         credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     });
     app.use((req, res, next) => {
         if (req.headers['content-length'] && parseInt(req.headers['content-length']) > 50 * 1024 * 1024) {
@@ -106,7 +115,9 @@ async function bootstrap() {
             enableImplicitConversion: true,
         },
     }));
-    app.setGlobalPrefix('api');
+    app.setGlobalPrefix('api', {
+        exclude: ['/', '/health', 'health'],
+    });
     const port = configService.get('PORT', 3000);
     await app.listen(port);
     logger.log(`🚀 Backend is running on: http://localhost:${port}/api`, 'Bootstrap');

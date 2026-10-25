@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Head, Query } from '@nestjs/common';
 
 @Controller()
 export class AppController {
@@ -7,11 +7,13 @@ export class AppController {
   private readonly MIN_SUPPORTED_VERSION = '1.0.0'; // Minimum desteklenen versiyon
 
   @Get('health')
+  @Head('health')
   health() {
     return { status: 'OK', message: 'Civarımda API is running' };
   }
 
   @Get()
+  @Head()
   root() {
     return { message: 'Welcome to Civarımda API v' + this.LATEST_VERSION };
   }
