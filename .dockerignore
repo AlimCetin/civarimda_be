@@ -17,7 +17,8 @@ test
 __tests__
 *.test.ts
 *.spec.ts
-tsconfig.build.json
+scripts
+seed.ts
 .eslintrc.js
 .prettierrc
 
