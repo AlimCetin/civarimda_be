@@ -16,6 +16,13 @@ import { CampaignsModule } from './campaigns/campaigns.module';
 import { PlacesModule } from './places/places.module';
 import { SettingsModule } from './settings/settings.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { NewsModule } from './news/news.module';
+import { PaymentsModule } from './payments/payments.module';
+import { StorageModule } from './common/storage/storage.module';
+import { ErrorTrackingModule } from './error-tracking/error-tracking.module';
+import { AppointmentsModule } from './appointments/appointments.module';
+import { AppVersionsModule } from './app-versions/app-versions.module';
+import { OtaUpdatesModule } from './ota-updates/ota-updates.module';
 import { AppController } from './app.controller';
 import { AppLoggerService } from './common/logger/logger.service';
 import { RedisModule } from './common/redis/redis.module';
@@ -28,9 +35,9 @@ import { HealthModule } from './health/health.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        throttlers:[{
-        ttl: configService.get<number>('THROTTLE_TTL', 60),
-        limit: configService.get<number>('THROTTLE_LIMIT', 100),  
+        throttlers: [{
+          ttl: configService.get<number>('THROTTLE_TTL', 60),
+          limit: configService.get<number>('THROTTLE_LIMIT', 100),
         }],
       }),
     }),
@@ -49,6 +56,13 @@ import { HealthModule } from './health/health.module';
     PlacesModule,
     SettingsModule,
     FeedbackModule,
+    NewsModule,
+    PaymentsModule,
+    StorageModule,
+    ErrorTrackingModule,
+    AppointmentsModule,
+    AppVersionsModule,
+    OtaUpdatesModule,
   ],
   controllers: [AppController],
   providers: [
@@ -60,4 +74,4 @@ import { HealthModule } from './health/health.module';
   ],
   exports: [AppLoggerService],
 })
-export class AppModule {}
+export class AppModule { }

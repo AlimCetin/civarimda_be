@@ -206,7 +206,8 @@ export class ReportsService {
         }
       }
     } catch (error) {
-      // Item might be deleted
+      // Şikayet edilen öğe silinmiş olabilir; hatayı sessizce yutmak yerine uyar
+      console.warn(`Raporlanan öğe getirilemedi (reportId=${report.id}):`, error instanceof Error ? error.message : String(error));
     }
 
     const reporter = await this.userRepository.findOne({

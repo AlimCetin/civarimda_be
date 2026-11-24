@@ -8,6 +8,7 @@ import * as express from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppLoggerService } from './common/logger/logger.service';
+import { ErrorTrackingService } from './error-tracking/error-tracking.service';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -23,21 +24,24 @@ async function bootstrap() {
     bodyParser: false, // Disable default body parser to configure custom limits
   });
 
-  // Uploads klasörünü statik olarak sun
-  // http://localhost:3000/uploads/videos/xxx.mp4 adresinden erişilebilir olacak
+  // Uploads klasörünü statik olarak sun (MIME sniffing'e karşı nosniff başlığı ile)
   app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
   });
 
   const configService = app.get(ConfigService);
   const logger = app.get(AppLoggerService);
+  const errorTrackingService = app.get(ErrorTrackingService);
 
   // Configure body parser with increased limits (must be done before other middleware)
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // Use Winston logger for exception filter
-  app.useGlobalFilters(new AllExceptionsFilter(logger));
+  // Use Winston logger and DB error tracker for exception filter
+  app.useGlobalFilters(new AllExceptionsFilter(logger, errorTrackingService));
 
   // Güvenlik Headers - Helmet (Swagger UI uyumlu)
   app.use(helmet({
@@ -71,8 +75,9 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // 1. Mobil uygulamalar (React Native / Android / iOS) ve servis içi istekler:
-      if (!origin || origin === 'null' || origin.startsWith('file://')) {
+      // 1. Mobil uygulamalar (React Native / Android / iOS) Origin header'ı göndermediğinde izin ver;
+      // ancak sandboxed iframe'lerden gelen 'null' origin'i credentials:true ile kabul etme.
+      if (!origin) {
         return callback(null, true);
       }
 
@@ -114,15 +119,19 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger Canlı API Dokümantasyonu (/api/docs)
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Civarımda API Dokümantasyonu')
-    .setDescription('Civarımda Platformu REST API Canlı Dokümantasyonu ve Test Arayüzü')
-    .setVersion('1.0.3')
-    .addBearerAuth()
-    .build();
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, swaggerDocument);
+  // Swagger Canlı API Dokümantasyonu (/api/docs) - Production ortamında varsayılan olarak kapalı
+  const isProd = configService.get<string>('NODE_ENV') === 'production';
+  const enableSwagger = configService.get<string>('ENABLE_SWAGGER') === 'true';
+  if (!isProd || enableSwagger) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Civarımda API Dokümantasyonu')
+      .setDescription('Civarımda Platformu REST API Canlı Dokümantasyonu ve Test Arayüzü')
+      .setVersion('1.0.3')
+      .addBearerAuth()
+      .build();
+    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, swaggerDocument);
+  }
 
   // Tek Giriş Kapısı: Tüm API rotaları istisnasız /api öneki altındadır (/api/health)
   app.setGlobalPrefix('api', {

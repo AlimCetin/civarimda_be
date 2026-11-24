@@ -15,6 +15,8 @@ export class WebhookTransport extends Transport {
   private webhookUrl: string;
   private webhookType: 'discord' | 'slack';
   private appName: string;
+  private readonly recentAlerts = new Map<string, number>();
+  private readonly DEDUPE_WINDOW_MS = 60_000;
 
   constructor(opts: WebhookTransportOptions) {
     super(opts);
@@ -45,6 +47,16 @@ export class WebhookTransport extends Transport {
       callback();
       return;
     }
+
+    // Aynı hata mesajının 60 saniye içinde webhook'u boğmasını önle
+    const dedupeKey = `${info.level}:${String(info.message || '').slice(0, 120)}`;
+    const now = Date.now();
+    const lastSent = this.recentAlerts.get(dedupeKey);
+    if (lastSent && now - lastSent < this.DEDUPE_WINDOW_MS) {
+      callback();
+      return;
+    }
+    this.recentAlerts.set(dedupeKey, now);
 
     // Webhook payload oluştur
     const payload = this.formatPayload(info);

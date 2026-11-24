@@ -10,11 +10,17 @@ import { AddCommentDto } from './dto/add-comment.dto';
 import { UpdateVisibilityDto } from './dto/update-visibility.dto';
 import { isValidId } from '../common/utils/id.util';
 import { multerConfig } from '../config/multer.config';
+import { verifyFileMagicBytes } from '../common/utils/file-signature.util';
+import { StorageService } from '../common/storage/storage.service';
+import * as fs from 'fs';
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
 export class PostsController {
-  constructor(private postsService: PostsService) { }
+  constructor(
+    private postsService: PostsService,
+    private readonly storageService: StorageService,
+  ) { }
 
   @Post('upload-media')
   @UseInterceptors(FileInterceptor('file', multerConfig))
@@ -22,18 +28,13 @@ export class PostsController {
     if (!file) {
       throw new BadRequestException('File is not provided or invalid type');
     }
-    // Windows path separatorlerini (\\) forward slash (/) ile değiştir
-    const normalizedPath = file.path.replace(/\\/g, '/');
-    // '1_backend/' prefixini kaldır (eğer varsa) ve root relative path dön
-    // file.path genellikle 'uploads/videos/xyz.mp4' veya '1_backend/uploads/...' döner
-    // Biz client'a '/uploads/videos/xyz.mp4' formatında dönmeliyiz
+    if (!verifyFileMagicBytes(file.path, file.mimetype)) {
+      fs.unlink(file.path, () => {});
+      throw new BadRequestException('Dosya içeriği bildirilen dosya türüyle uyuşmuyor.');
+    }
 
-    // Eğer path 'uploads' ile başlamıyorsa düzelt
-    const relativePath = normalizedPath.includes('uploads/')
-      ? normalizedPath.substring(normalizedPath.indexOf('uploads/'))
-      : normalizedPath;
-
-    return { url: `/${relativePath}` };
+    const stored = await this.storageService.uploadMulterFile(file);
+    return { url: stored.url, provider: stored.provider };
   }
 
   @Post()
@@ -45,14 +46,14 @@ export class PostsController {
   ) {
     let videoUrl = (body as any).video;
 
-    // Eğer dosya yüklendiyse, URL oluştur
+    // Eğer dosya yüklendiyse, magic-byte doğrula ve aktif depolama sağlayıcısına (local/R2) aktar
     if (file) {
-      // Windows path separatorlerini (\\) forward slash (/) ile değiştir
-      const normalizedPath = file.path.replace(/\\/g, '/');
-      const relativePath = normalizedPath.includes('uploads/')
-        ? normalizedPath.substring(normalizedPath.indexOf('uploads/'))
-        : normalizedPath;
-      videoUrl = `/${relativePath}`;
+      if (!verifyFileMagicBytes(file.path, file.mimetype)) {
+        fs.unlink(file.path, () => {});
+        throw new BadRequestException('Dosya içeriği bildirilen dosya türüyle uyuşmuyor.');
+      }
+      const stored = await this.storageService.uploadMulterFile(file);
+      videoUrl = stored.url;
     }
 
     return this.postsService.create(

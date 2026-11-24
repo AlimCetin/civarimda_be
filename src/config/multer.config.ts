@@ -1,47 +1,43 @@
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { join } from 'path';
 import * as fs from 'fs';
+import { SAFE_MIME_EXTENSION_MAP } from '../common/utils/file-signature.util';
 
 export const multerConfig = {
-    storage: diskStorage({
-        destination: (req, file, cb) => {
-            // Video veya resim klasörünü belirle
-            const folderName = file.mimetype.startsWith('video/') ? 'uploads/videos' : 'uploads/images';
-            const uploadPath = join(process.cwd(), folderName);
+  storage: diskStorage({
+    destination: (req, file, cb) => {
+      // Video veya resim klasörünü belirle
+      const folderName = file.mimetype.startsWith('video/')
+        ? 'uploads/videos'
+        : 'uploads/images';
+      const uploadPath = join(process.cwd(), folderName);
 
-            // Klasör yoksa oluştur
-            if (!fs.existsSync(uploadPath)) {
-                fs.mkdirSync(uploadPath, { recursive: true });
-            }
+      // Klasör yoksa oluştur
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
 
-            cb(null, uploadPath);
-        },
-        filename: (req, file, cb) => {
-            // Benzersiz dosya adı oluştur: timestamp-random.ext
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            const ext = extname(file.originalname);
-            cb(null, `${uniqueSuffix}${ext}`);
-        },
-    }),
-    limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB maksimum dosya boyutu
+      cb(null, uploadPath);
     },
-    fileFilter: (req, file, cb) => {
-        // Sadece video ve resim dosyalarına izin ver
-        const allowedMimeTypes = [
-            'video/mp4',
-            'video/quicktime',
-            'video/x-msvideo',
-            'image/jpeg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-        ];
-
-        if (allowedMimeTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only videos and images are allowed.'), false);
-        }
+    filename: (req, file, cb) => {
+      // İstemciden gelen uzantıya güvenmek yerine MIME eşlemesinden güvenli uzantıyı al
+      const safeExt = SAFE_MIME_EXTENSION_MAP[file.mimetype];
+      if (!safeExt) {
+        return cb(new Error('Geçersiz dosya uzantısı.'), '');
+      }
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      cb(null, `${uniqueSuffix}${safeExt}`);
     },
+  }),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB maksimum dosya boyutu
+  },
+  fileFilter: (req, file, cb) => {
+    // Sadece izin verilen video ve resim MIME türlerini kabul et
+    if (Object.prototype.hasOwnProperty.call(SAFE_MIME_EXTENSION_MAP, file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Geçersiz dosya türü. Yalnızca izin verilen resim ve video formatları yüklenebilir.'), false);
+    }
+  },
 };

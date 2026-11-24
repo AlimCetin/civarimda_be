@@ -5,6 +5,7 @@ import { NotBlockedGuard } from '../common/guards/not-blocked.guard';
 import { CurrentUser } from '../common/decorators/user.decorator';
 import { User } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { SetupBusinessProfileDto } from './dto/business-profile.dto';
 import { isValidId } from '../common/utils/id.util';
 
 @Controller('users')
@@ -123,6 +124,14 @@ export class UsersController {
   async updateProfile(@Body() data: UpdateProfileDto, @CurrentUser() user: User) {
     // Only allow users to update their own profile
     return this.usersService.updateProfile(user.id, data);
+  }
+
+  @Post('business-profile')
+  async setupBusinessProfile(
+    @Body() dto: SetupBusinessProfileDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.usersService.setupBusinessProfile(user.id, dto);
   }
 
   @Delete('account')

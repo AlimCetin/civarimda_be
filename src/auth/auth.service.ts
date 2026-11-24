@@ -1,8 +1,9 @@
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
 import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/auth.dto';
@@ -18,7 +19,12 @@ export class AuthService {
     private configService: ConfigService,
     @Inject(AppLoggerService) private readonly logger: AppLoggerService,
     private readonly redisService: RedisService,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
 
   async register(dto: RegisterDto) {
     const emailLower = dto.email.toLowerCase().trim();
@@ -27,32 +33,36 @@ export class AuthService {
     const exists = await this.credentialsRepository.findOne({ where: { email: emailLower } });
     if (exists) throw new ConflictException('User already exists');
 
-    const user = this.userRepository.create({
-      fullName: dto.fullName,
-    });
-    await this.userRepository.save(user);
+    // Kullanıcı ve kimlik bilgilerini tek transaction içinde atomik olarak oluştur
+    const user = await this.dataSource.transaction(async (manager) => {
+      const createdUser = manager.create(User, {
+        fullName: dto.fullName,
+      });
+      await manager.save(User, createdUser);
 
-    // Create credentials separately
-    const credentials = this.credentialsRepository.create({
-      userId: user.id,
-      email: emailLower,
-      password: dto.password,
+      const credentials = manager.create(UserCredentials, {
+        userId: createdUser.id,
+        email: emailLower,
+        password: dto.password,
+      });
+      await manager.save(UserCredentials, credentials);
+      return createdUser;
     });
-    await this.credentialsRepository.save(credentials);
 
     const tokens = await this.generateTokens(user.id);
+    const tokenHash = this.hashToken(tokens.refreshToken);
     
-    // Store refresh token in Redis (TTL: 7 days = 604800 seconds)
+    // Store hashed refresh token in Redis (TTL: 7 days = 604800 seconds)
     await this.redisService.set(
       `refresh_token:${user.id}`,
-      tokens.refreshToken,
+      tokenHash,
       604800
     );
     
-    // Also update database
+    // Also update database with hashed token
     await this.credentialsRepository.update(
       { userId: user.id },
-      { refreshToken: tokens.refreshToken }
+      { refreshToken: tokenHash }
     );
 
     return { ...tokens, user: this.sanitizeUser(user) };
@@ -91,18 +101,19 @@ export class AuthService {
     this.logger.log(`User logged in successfully: ${emailLower}`, 'AuthService');
 
     const tokens = await this.generateTokens(user.id);
+    const tokenHash = this.hashToken(tokens.refreshToken);
     
-    // Store refresh token in Redis (TTL: 7 days = 604800 seconds)
+    // Store hashed refresh token in Redis (TTL: 7 days = 604800 seconds)
     await this.redisService.set(
       `refresh_token:${user.id}`,
-      tokens.refreshToken,
+      tokenHash,
       604800
     );
     
-    // Also update database
+    // Also update database with hashed token
     await this.credentialsRepository.update(
       { email: emailLower },
-      { refreshToken: tokens.refreshToken }
+      { refreshToken: tokenHash }
     );
 
     return { ...tokens, user: this.sanitizeUser(user) };
@@ -118,12 +129,12 @@ export class AuthService {
       }
 
       // Verify refresh token
-      let payload: any;
+      let payload: { id: string; type?: string };
       try {
-        payload = this.jwtService.verify(dto.refreshToken, {
+        payload = this.jwtService.verify<{ id: string; type?: string }>(dto.refreshToken, {
           secret: refreshSecret,
         });
-      } catch (error) {
+      } catch {
         this.logger.securityEvent('Invalid refresh token attempt', {
           reason: 'Token verification failed',
           timestamp: new Date().toISOString(),
@@ -131,10 +142,14 @@ export class AuthService {
         throw new UnauthorizedException('Invalid or expired refresh token');
       }
 
-      // Check if refresh token exists in Redis
-      const storedToken = await this.redisService.get(`refresh_token:${payload.id}`);
+      if (payload.type !== 'refresh') {
+        throw new UnauthorizedException('Invalid token type');
+      }
+
+      // Check if hashed refresh token exists in Redis
+      const storedTokenHash = await this.redisService.get(`refresh_token:${payload.id}`);
       
-      if (!storedToken) {
+      if (!storedTokenHash) {
         this.logger.securityEvent('Invalid refresh token attempt', {
           userId: payload.id,
           reason: 'Refresh token not found in Redis',
@@ -143,8 +158,8 @@ export class AuthService {
         throw new UnauthorizedException('Refresh token not found');
       }
 
-      // Verify refresh token matches
-      if (storedToken !== dto.refreshToken) {
+      // Verify refresh token hash matches
+      if (storedTokenHash !== this.hashToken(dto.refreshToken)) {
         this.logger.securityEvent('Invalid refresh token attempt', {
           userId: payload.id,
           reason: 'Refresh token mismatch',
@@ -155,18 +170,19 @@ export class AuthService {
 
       // Generate new tokens
       const tokens = await this.generateTokens(payload.id);
+      const newTokenHash = this.hashToken(tokens.refreshToken);
       
-      // Update refresh token in Redis (TTL: 7 days = 604800 seconds)
+      // Update hashed refresh token in Redis (TTL: 7 days = 604800 seconds)
       await this.redisService.set(
         `refresh_token:${payload.id}`,
-        tokens.refreshToken,
+        newTokenHash,
         604800
       );
       
-      // Also update database
+      // Also update database with hashed token
       await this.credentialsRepository.update(
         { userId: payload.id },
-        { refreshToken: tokens.refreshToken }
+        { refreshToken: newTokenHash }
       );
 
       return tokens;
@@ -179,8 +195,6 @@ export class AuthService {
   }
 
   private async generateTokens(userId: string) {
-    const payload = { id: userId };
-    
     const jwtSecret = this.configService.get<string>('JWT_SECRET');
     if (!jwtSecret) {
       throw new Error('JWT_SECRET environment variable is required');
@@ -188,15 +202,21 @@ export class AuthService {
 
     const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || jwtSecret;
     
-    const accessToken = this.jwtService.sign(payload, {
-      secret: jwtSecret,
-      expiresIn: '1h',
-    });
+    const accessToken = this.jwtService.sign(
+      { id: userId, type: 'access' },
+      {
+        secret: jwtSecret,
+        expiresIn: '1h',
+      },
+    );
 
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: refreshSecret,
-      expiresIn: '7d',
-    });
+    const refreshToken = this.jwtService.sign(
+      { id: userId, type: 'refresh' },
+      {
+        secret: refreshSecret,
+        expiresIn: '7d',
+      },
+    );
 
     return { accessToken, refreshToken };
   }
@@ -233,6 +253,10 @@ export class AuthService {
 
     credentials.password = newPassword;
     await this.credentialsRepository.save(credentials);
+
+    // Şifre değiştiğinde mevcut tüm refresh token oturumlarını iptal et
+    await this.redisService.del(`refresh_token:${userId}`);
+    await this.credentialsRepository.update({ userId }, { refreshToken: null });
 
     this.logger.securityEvent('Password changed successfully', {
       userId: userId.toString(),

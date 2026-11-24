@@ -14,6 +14,8 @@ import { JwtAuthGuard } from '../guards/jwt.guard';
 import { CurrentUser } from '../common/decorators/user.decorator';
 import { User } from '../entities/user.entity';
 import { PlacesService } from './places.service';
+import { CreatePlaceDto, UpdatePlaceDto } from './dto/place.dto';
+import { AddItemCommentDto } from '../campaigns/dto/campaign.dto';
 
 @Controller('places')
 export class PlacesController {
@@ -43,19 +45,19 @@ export class PlacesController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  async create(@Body() body: any, @CurrentUser() user: User) {
+  async create(@Body() body: CreatePlaceDto, @CurrentUser() user: User) {
     return this.placesService.create(user.id, body);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  async updatePatch(@Param('id') id: string, @Body() body: any, @CurrentUser() user: User) {
+  async updatePatch(@Param('id') id: string, @Body() body: UpdatePlaceDto, @CurrentUser() user: User) {
     return this.placesService.update(id, user.id, user.role, body);
   }
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async updatePut(@Param('id') id: string, @Body() body: any, @CurrentUser() user: User) {
+  async updatePut(@Param('id') id: string, @Body() body: UpdatePlaceDto, @CurrentUser() user: User) {
     return this.placesService.update(id, user.id, user.role, body);
   }
 
@@ -80,9 +82,9 @@ export class PlacesController {
   @UseGuards(JwtAuthGuard)
   async addComment(
     @Param('id') id: string,
-    @Body('text') text: string,
+    @Body() body: AddItemCommentDto,
     @CurrentUser() user: User,
   ) {
-    return this.placesService.addComment(id, user.id, text);
+    return this.placesService.addComment(id, user.id, body.text);
   }
 }

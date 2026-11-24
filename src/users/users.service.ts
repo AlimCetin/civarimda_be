@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull, ILike } from 'typeorm';
+import { DataSource, Repository, In, IsNull, ILike } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
 import { Post } from '../entities/post.entity';
@@ -9,6 +9,7 @@ import { Conversation } from '../entities/conversation.entity';
 import { Message } from '../entities/message.entity';
 import { Notification } from '../entities/notification.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { SetupBusinessProfileDto } from './dto/business-profile.dto';
 import { RedisService } from '../common/redis/redis.service';
 
 @Injectable()
@@ -22,6 +23,7 @@ export class UsersService {
     @InjectRepository(Message) private messageRepository: Repository<Message>,
     @InjectRepository(Notification) private notificationRepository: Repository<Notification>,
     private readonly redisService: RedisService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findById(userId: string, currentUserId?: string) {
@@ -335,6 +337,105 @@ export class UsersService {
   }
 
   async deleteAccount(userId: string) {
+    const deletedAt = new Date();
+
+    // Tüm hesap silme işlemlerini atomik bir transaction içinde gerçekleştir
+    await this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId, deletedAt: IsNull() },
+      });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const userPosts = await manager.find(Post, {
+        where: { userId, deletedAt: IsNull() },
+        select: ['id'],
+      });
+      const postIds = userPosts.map((p) => p.id);
+
+      if (postIds.length > 0) {
+        await manager
+          .createQueryBuilder()
+          .update(Comment)
+          .set({ deletedAt })
+          .where('postId IN (:...postIds)', { postIds })
+          .andWhere('deletedAt IS NULL')
+          .execute();
+
+        await manager
+          .createQueryBuilder()
+          .update(Notification)
+          .set({ deletedAt })
+          .where('postId IN (:...postIds)', { postIds })
+          .andWhere('deletedAt IS NULL')
+          .execute();
+
+        await manager
+          .createQueryBuilder()
+          .update(Post)
+          .set({ deletedAt })
+          .where('userId = :userId', { userId })
+          .andWhere('deletedAt IS NULL')
+          .execute();
+      }
+
+      await manager
+        .createQueryBuilder()
+        .update(Comment)
+        .set({ deletedAt })
+        .where('userId = :userId', { userId })
+        .andWhere('deletedAt IS NULL')
+        .execute();
+
+      const userConversations = await manager
+        .createQueryBuilder(Conversation, 'c')
+        .where(':userId = ANY(c.participants)', { userId })
+        .andWhere('c.deletedAt IS NULL')
+        .getMany();
+
+      if (userConversations.length > 0) {
+        const convIds = userConversations.map((c) => c.id);
+        await manager
+          .createQueryBuilder()
+          .update(Message)
+          .set({ deletedAt })
+          .where('conversationId IN (:...convIds)', { convIds })
+          .andWhere('deletedAt IS NULL')
+          .execute();
+
+        for (const conv of userConversations) {
+          const otherParticipants = conv.participants.filter((p) => p !== userId);
+          if (otherParticipants.length === 0) {
+            conv.deletedAt = deletedAt;
+          } else {
+            conv.participants = otherParticipants;
+          }
+        }
+        await manager.save(Conversation, userConversations);
+      }
+
+      await manager
+        .createQueryBuilder()
+        .update(Notification)
+        .set({ deletedAt })
+        .where('(userId = :userId OR fromUserId = :userId)', { userId })
+        .andWhere('deletedAt IS NULL')
+        .execute();
+
+      await manager.delete(UserCredentials, { userId });
+
+      user.deletedAt = deletedAt;
+      await manager.save(User, user);
+    });
+
+    await this.invalidateFeedCache(userId);
+    await this.redisService.del(`user:${userId}`);
+
+    return { message: 'Account deleted successfully' };
+  }
+
+  async setupBusinessProfile(userId: string, dto: SetupBusinessProfileDto) {
     const user = await this.userRepository.findOne({
       where: { id: userId, deletedAt: IsNull() },
     });
@@ -342,89 +443,16 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const deletedAt = new Date();
+    user.isBusiness = true;
+    user.businessName = dto.businessName.trim();
+    user.businessCategory = dto.businessCategory.trim();
+    user.businessPhone = dto.businessPhone.trim();
+    user.businessCity = dto.businessCity.trim();
+    user.businessAddress = dto.businessAddress?.trim() || null;
 
-    const userPosts = await this.postRepository.find({
-      where: { userId, deletedAt: IsNull() },
-      select: ['id'],
-    });
-    const postIds = userPosts.map((p) => p.id);
-
-    if (postIds.length > 0) {
-      await this.commentRepository
-        .createQueryBuilder()
-        .update(Comment)
-        .set({ deletedAt })
-        .where('postId IN (:...postIds)', { postIds })
-        .andWhere('deletedAt IS NULL')
-        .execute();
-
-      await this.notificationRepository
-        .createQueryBuilder()
-        .update(Notification)
-        .set({ deletedAt })
-        .where('postId IN (:...postIds)', { postIds })
-        .andWhere('deletedAt IS NULL')
-        .execute();
-
-      await this.postRepository
-        .createQueryBuilder()
-        .update(Post)
-        .set({ deletedAt })
-        .where('userId = :userId', { userId })
-        .andWhere('deletedAt IS NULL')
-        .execute();
-    }
-
-    await this.commentRepository
-      .createQueryBuilder()
-      .update(Comment)
-      .set({ deletedAt })
-      .where('userId = :userId', { userId })
-      .andWhere('deletedAt IS NULL')
-      .execute();
-
-    const userConversations = await this.conversationRepository
-      .createQueryBuilder('c')
-      .where(':userId = ANY(c.participants)', { userId })
-      .andWhere('c.deletedAt IS NULL')
-      .getMany();
-
-    for (const conv of userConversations) {
-      await this.messageRepository
-        .createQueryBuilder()
-        .update(Message)
-        .set({ deletedAt })
-        .where('conversationId = :convId', { convId: conv.id })
-        .andWhere('deletedAt IS NULL')
-        .execute();
-
-      const otherParticipants = conv.participants.filter((p) => p !== userId);
-      if (otherParticipants.length === 0) {
-        conv.deletedAt = deletedAt;
-      } else {
-        conv.participants = otherParticipants;
-      }
-      await this.conversationRepository.save(conv);
-    }
-
-    await this.notificationRepository
-      .createQueryBuilder()
-      .update(Notification)
-      .set({ deletedAt })
-      .where('(userId = :userId OR fromUserId = :userId)', { userId })
-      .andWhere('deletedAt IS NULL')
-      .execute();
-
-    await this.credentialsRepository.delete({ userId });
-
-    user.deletedAt = deletedAt;
-    await this.userRepository.save(user);
-
-    await this.invalidateFeedCache(userId);
+    const saved = await this.userRepository.save(user);
     await this.redisService.del(`user:${userId}`);
-
-    return { message: 'Account deleted successfully' };
+    return saved.toObject();
   }
 
   private async invalidateFeedCache(userId: string): Promise<void> {

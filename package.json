@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed": "ts-node -r tsconfig-paths/register seed.ts",
+    "backup:db": "ts-node -r tsconfig-paths/register scripts/backup-pg-to-r2.ts",
     "migrate:mongo-to-pg": "ts-node -r tsconfig-paths/register scripts/migrate-mongo-to-pg.ts"
   },
   "dependencies": {

@@ -12,7 +12,8 @@ export const DatabaseModule = TypeOrmModule.forRootAsync({
         type: 'postgres',
         url: databaseUrl,
         autoLoadEntities: true,
-        synchronize: configService.get<boolean>('TYPEORM_SYNC', true), // auto create tables in development / when requested
+        // Production ortamında varsayılan olarak otomatik şema senkronizasyonu kapalı tutulur
+        synchronize: configService.get<boolean>('TYPEORM_SYNC', !isProduction),
         ssl: isProduction && configService.get<string>('POSTGRES_SSL') === 'true' ? { rejectUnauthorized: false } : false,
         extra: {
           max: configService.get<number>('POSTGRES_MAX_POOL_SIZE', isProduction ? 30 : 10),
@@ -30,7 +31,7 @@ export const DatabaseModule = TypeOrmModule.forRootAsync({
       password: configService.get<string>('POSTGRES_PASSWORD', 'postgres'),
       database: configService.get<string>('POSTGRES_DATABASE', 'civarimda'),
       autoLoadEntities: true,
-      synchronize: configService.get<boolean>('TYPEORM_SYNC', true),
+      synchronize: configService.get<boolean>('TYPEORM_SYNC', !isProduction),
       ssl: isProduction && configService.get<string>('POSTGRES_SSL') === 'true' ? { rejectUnauthorized: false } : false,
       extra: {
         max: configService.get<number>('POSTGRES_MAX_POOL_SIZE', isProduction ? 30 : 10),

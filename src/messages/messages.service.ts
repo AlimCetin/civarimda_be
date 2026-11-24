@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull } from 'typeorm';
+import { DataSource, Repository, In, IsNull } from 'typeorm';
 import { Conversation } from '../entities/conversation.entity';
 import { Message } from '../entities/message.entity';
 import { Notification } from '../entities/notification.entity';
@@ -15,6 +15,7 @@ export class MessagesService {
     @InjectRepository(Notification) private notificationRepository: Repository<Notification>,
     @InjectRepository(User) private userRepository: Repository<User>,
     private readonly redisService: RedisService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async getConversations(userId: string, page: number = 1, limit: number = 20) {
@@ -184,41 +185,78 @@ export class MessagesService {
   }
 
   async sendMessage(senderId: string, receiverId: string, text: string) {
-    let conversation = await this.conversationRepository
-      .createQueryBuilder('c')
-      .where(':senderId = ANY(c.participants) AND :receiverId = ANY(c.participants)', {
-        senderId,
-        receiverId,
-      })
-      .andWhere('c.deletedAt IS NULL')
-      .getOne();
-
-    if (!conversation) {
-      conversation = this.conversationRepository.create({
-        participants: [senderId, receiverId],
-        lastMessageAt: new Date(),
-      });
-      await this.conversationRepository.save(conversation);
+    if (senderId === receiverId) {
+      throw new ForbiddenException('Kendinize mesaj gönderemezsiniz.');
     }
 
-    const message = this.messageRepository.create({
-      conversationId: conversation.id,
-      senderId,
-      text,
-      read: false,
-    });
-    await this.messageRepository.save(message);
+    // Gönderici ve alıcının aktif olduğunu ve birbirlerini engellemediğini doğrula
+    const [sender, receiver] = await Promise.all([
+      this.userRepository.findOne({
+        where: { id: senderId, deletedAt: IsNull() },
+        select: ['id', 'fullName', 'avatar', 'blockedUsers'],
+      }),
+      this.userRepository.findOne({
+        where: { id: receiverId, deletedAt: IsNull() },
+        select: ['id', 'blockedUsers', 'isPermanentlyBanned', 'bannedUntil'],
+      }),
+    ]);
 
-    conversation.lastMessage = message.id;
-    conversation.lastMessageAt = new Date();
-    await this.conversationRepository.save(conversation);
+    if (!sender || !receiver) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+    if (
+      receiver.isPermanentlyBanned ||
+      (receiver.bannedUntil && new Date(receiver.bannedUntil) > new Date())
+    ) {
+      throw new ForbiddenException('Bu kullanıcıya mesaj gönderilemez.');
+    }
+    if (
+      sender.blockedUsers?.includes(receiverId) ||
+      receiver.blockedUsers?.includes(senderId)
+    ) {
+      throw new ForbiddenException('Engellenen kullanıcılar arasında mesaj gönderilemez.');
+    }
 
-    const notification = this.notificationRepository.create({
-      userId: receiverId,
-      fromUserId: senderId,
-      type: 'message',
+    // Konuşma, mesaj ve bildirim kayıtlarını tek transaction içinde atomik olarak oluştur
+    const { conversation, message } = await this.dataSource.transaction(async (manager) => {
+      let conv = await manager
+        .createQueryBuilder(Conversation, 'c')
+        .where(':senderId = ANY(c.participants) AND :receiverId = ANY(c.participants)', {
+          senderId,
+          receiverId,
+        })
+        .andWhere('c.deletedAt IS NULL')
+        .getOne();
+
+      if (!conv) {
+        conv = manager.create(Conversation, {
+          participants: [senderId, receiverId],
+          lastMessageAt: new Date(),
+        });
+        await manager.save(Conversation, conv);
+      }
+
+      const msg = manager.create(Message, {
+        conversationId: conv.id,
+        senderId,
+        text,
+        read: false,
+      });
+      await manager.save(Message, msg);
+
+      conv.lastMessage = msg.id;
+      conv.lastMessageAt = new Date();
+      await manager.save(Conversation, conv);
+
+      const notif = manager.create(Notification, {
+        userId: receiverId,
+        fromUserId: senderId,
+        type: 'message',
+      });
+      await manager.save(Notification, notif);
+
+      return { conversation: conv, message: msg };
     });
-    await this.notificationRepository.save(notification);
 
     const cacheKey = `notification:unread:${receiverId}`;
     const cached = await this.redisService.get(cacheKey);
@@ -230,11 +268,6 @@ export class MessagesService {
     }
 
     await this.redisService.del(`messages:unread:${receiverId}`);
-
-    const sender = await this.userRepository.findOne({
-      where: { id: senderId },
-      select: ['id', 'fullName', 'avatar'],
-    });
 
     return {
       id: message.id,
@@ -248,14 +281,26 @@ export class MessagesService {
       sender: {
         id: senderId,
         _id: senderId,
-        fullName: sender?.fullName || '',
-        username: sender?.fullName || '',
-        avatar: sender?.avatar || null,
+        fullName: sender.fullName || '',
+        username: sender.fullName || '',
+        avatar: sender.avatar || null,
       },
     };
   }
 
   async markAsRead(conversationId: string, userId: string) {
+    // IDOR önlemi: Kullanıcının gerçekten bu konuşmanın katılımcısı olduğunu doğrula
+    const conversation = await this.conversationRepository.findOne({
+      where: { id: conversationId, deletedAt: IsNull() },
+      select: ['id', 'participants'],
+    });
+    if (!conversation) {
+      throw new NotFoundException('Konuşma bulunamadı.');
+    }
+    if (!conversation.participants?.includes(userId)) {
+      throw new ForbiddenException('Bu konuşmaya erişim yetkiniz yok.');
+    }
+
     const result = await this.messageRepository
       .createQueryBuilder()
       .update(Message)

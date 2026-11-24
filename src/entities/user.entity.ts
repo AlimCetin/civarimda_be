@@ -41,6 +41,27 @@ export class User {
   isVerified: boolean;
 
   @Column({ type: 'boolean', default: false })
+  isBusiness: boolean;
+
+  @Column({ type: 'varchar', length: 150, nullable: true, default: null })
+  businessName: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  businessCategory: string | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true, default: null })
+  businessPhone: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  businessCity: string | null;
+
+  @Column({ type: 'varchar', length: 300, nullable: true, default: null })
+  businessAddress: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  businessVerified: boolean;
+
+  @Column({ type: 'boolean', default: false })
   hideFollowers: boolean;
 
   @Column({ type: 'boolean', default: false })

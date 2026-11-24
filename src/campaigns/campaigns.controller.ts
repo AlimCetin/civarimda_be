@@ -14,6 +14,11 @@ import { JwtAuthGuard } from '../guards/jwt.guard';
 import { CurrentUser } from '../common/decorators/user.decorator';
 import { User } from '../entities/user.entity';
 import { CampaignsService } from './campaigns.service';
+import {
+  AddItemCommentDto,
+  CreateCampaignDto,
+  UpdateCampaignDto,
+} from './dto/campaign.dto';
 
 @Controller('campaigns')
 export class CampaignsController {
@@ -48,19 +53,19 @@ export class CampaignsController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  async create(@Body() body: any, @CurrentUser() user: User) {
+  async create(@Body() body: CreateCampaignDto, @CurrentUser() user: User) {
     return this.campaignsService.create(user.id, body);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  async updatePatch(@Param('id') id: string, @Body() body: any, @CurrentUser() user: User) {
+  async updatePatch(@Param('id') id: string, @Body() body: UpdateCampaignDto, @CurrentUser() user: User) {
     return this.campaignsService.update(id, user.id, user.role, body);
   }
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async updatePut(@Param('id') id: string, @Body() body: any, @CurrentUser() user: User) {
+  async updatePut(@Param('id') id: string, @Body() body: UpdateCampaignDto, @CurrentUser() user: User) {
     return this.campaignsService.update(id, user.id, user.role, body);
   }
 
@@ -91,9 +96,9 @@ export class CampaignsController {
   @UseGuards(JwtAuthGuard)
   async addComment(
     @Param('id') id: string,
-    @Body('text') text: string,
+    @Body() body: AddItemCommentDto,
     @CurrentUser() user: User,
   ) {
-    return this.campaignsService.addComment(id, user.id, text);
+    return this.campaignsService.addComment(id, user.id, body.text);
   }
 }

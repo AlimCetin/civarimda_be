@@ -3,6 +3,7 @@ import { MessagesService } from './messages.service';
 import { JwtAuthGuard } from '../guards/jwt.guard';
 import { CurrentUser } from '../common/decorators/user.decorator';
 import { User } from '../entities/user.entity';
+import { SendMessageDto } from './dto/send-message.dto';
 
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
@@ -29,7 +30,7 @@ export class MessagesController {
   }
 
   @Post()
-  async sendMessage(@Body() body: { receiverId: string; text: string }, @CurrentUser() user: User) {
+  async sendMessage(@Body() body: SendMessageDto, @CurrentUser() user: User) {
     return this.messagesService.sendMessage(user.id, body.receiverId, body.text);
   }
 

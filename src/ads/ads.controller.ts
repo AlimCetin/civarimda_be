@@ -19,6 +19,12 @@ import { User } from '../entities/user.entity';
 import { AdsService } from './ads.service';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
+import {
+  CreateBusinessAdDto,
+  CreatePaidBusinessAdDto,
+  PurchaseAdPackageDto,
+} from './dto/business-ad.dto';
+import { CreateAdPackageDto, UpdateAdPackageDto } from './dto/ad-package.dto';
 import { AdStatus } from '../entities/ad.entity';
 
 @Controller('ads')
@@ -43,8 +49,74 @@ export class AdsController {
 
   @Get('active')
   @UseGuards(JwtAuthGuard)
-  async getActiveAds() {
-    return this.adsService.getActiveAds();
+  async getActiveAds(@Query('city') city?: string) {
+    return this.adsService.getActiveAds(city);
+  }
+
+  @Get('packages')
+  async getPackages() {
+    return this.adsService.getPackages();
+  }
+
+  @Get('packages/all')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async getAllPackagesAdmin() {
+    return this.adsService.getAllPackagesAdmin();
+  }
+
+  @Post('packages')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async createPackage(@Body() dto: CreateAdPackageDto) {
+    return this.adsService.createPackage(dto);
+  }
+
+  @Put('packages/:packageId')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async updatePackage(
+    @Param('packageId') packageId: string,
+    @Body() dto: UpdateAdPackageDto,
+  ) {
+    return this.adsService.updatePackage(packageId, dto);
+  }
+
+  @Delete('packages/:packageId')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async deletePackage(@Param('packageId') packageId: string) {
+    return this.adsService.deletePackage(packageId);
+  }
+
+  @Get('my-ads')
+  @UseGuards(JwtAuthGuard)
+  async getMyBusinessAds(@CurrentUser() user: User) {
+    return this.adsService.getMyBusinessAds(user.id);
+  }
+
+  @Post('business/free')
+  @UseGuards(JwtAuthGuard)
+  async createFreeBusinessAd(
+    @Body() dto: CreateBusinessAdDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.adsService.createFreeBusinessAd(user.id, dto);
+  }
+
+  @Post('packages/:packageId/purchase')
+  @UseGuards(JwtAuthGuard)
+  async purchasePackage(
+    @Param('packageId') packageId: string,
+    @Body() dto: PurchaseAdPackageDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.adsService.purchasePackage(user.id, packageId, dto);
+  }
+
+  @Post('business/paid')
+  @UseGuards(JwtAuthGuard)
+  async createPaidBusinessAd(
+    @Body() dto: CreatePaidBusinessAdDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.adsService.createPaidBusinessAd(user.id, dto);
   }
 
   @Get('statistics')
@@ -67,6 +139,12 @@ export class AdsController {
     @CurrentUser() admin: User,
   ) {
     return this.adsService.update(id, updateAdDto, admin.id);
+  }
+
+  @Post(':id/approve')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async approveAd(@Param('id') id: string, @CurrentUser() admin: User) {
+    return this.adsService.approveAd(id, admin.id);
   }
 
   @Delete(':id')

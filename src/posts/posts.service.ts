@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull } from 'typeorm';
+import { DataSource, Repository, In, IsNull } from 'typeorm';
 import { Post } from '../entities/post.entity';
 import { Comment } from '../entities/comment.entity';
 import { Notification } from '../entities/notification.entity';
@@ -18,6 +18,7 @@ export class PostsService {
     @InjectRepository(User) private userRepository: Repository<User>,
     @InjectRepository(Ad) private adRepository: Repository<Ad>,
     private readonly redisService: RedisService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(
@@ -320,21 +321,25 @@ export class PostsService {
       throw new BadRequestException('Invalid user ID format');
     }
 
-    if (currentUserId && currentUserId !== userId) {
-      const postOwner = await this.userRepository.findOne({
+    // Tekrarlı sorguları önlemek için postOwner ve currentUser bilgilerini paralel ve tek seferde çek
+    const [postOwner, currentUser] = await Promise.all([
+      this.userRepository.findOne({
         where: { id: userId, deletedAt: IsNull() },
-      });
+      }),
+      currentUserId && currentUserId !== userId
+        ? this.userRepository.findOne({
+            where: { id: currentUserId, deletedAt: IsNull() },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (currentUserId && currentUserId !== userId) {
       if (!postOwner) {
         throw new NotFoundException('User not found');
       }
-
       if (postOwner.blockedUsers?.includes(currentUserId)) {
         throw new ForbiddenException('You are blocked by this user');
       }
-
-      const currentUser = await this.userRepository.findOne({
-        where: { id: currentUserId, deletedAt: IsNull() },
-      });
       if (currentUser?.blockedUsers?.includes(userId)) {
         throw new ForbiddenException('You have blocked this user');
       }
@@ -356,9 +361,6 @@ export class PostsService {
 
     let filteredPosts = posts;
     if (currentUserId && currentUserId !== userId) {
-      const postOwner = await this.userRepository.findOne({
-        where: { id: userId, deletedAt: IsNull() },
-      });
       const isFollowing = postOwner?.followers?.includes(currentUserId) || false;
 
       filteredPosts = posts.filter((post) => {
@@ -371,18 +373,9 @@ export class PostsService {
       });
     }
 
-    let savedPosts: string[] = [];
-    if (currentUserId) {
-      const user = await this.userRepository.findOne({
-        where: { id: currentUserId, deletedAt: IsNull() },
-      });
-      savedPosts = user?.savedPosts || [];
-    }
-
-    const postOwner = await this.userRepository.findOne({
-      where: { id: userId },
-      select: ['id', 'fullName', 'avatar'],
-    });
+    const savedPosts: string[] = currentUserId
+      ? (currentUserId === userId ? postOwner?.savedPosts : currentUser?.savedPosts) || []
+      : [];
 
     return {
       posts: filteredPosts.map((post) => ({
@@ -829,18 +822,13 @@ export class PostsService {
 
     const deletedAt = new Date();
 
-    await this.commentRepository.update(
-      { postId, deletedAt: IsNull() },
-      { deletedAt },
-    );
-
-    await this.notificationRepository.update(
-      { postId, deletedAt: IsNull() },
-      { deletedAt },
-    );
-
-    post.deletedAt = deletedAt;
-    await this.postRepository.save(post);
+    // Gönderi, yorumlar ve bildirimleri tek transaction içinde atomik olarak soft-delete yap
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(Comment, { postId, deletedAt: IsNull() }, { deletedAt });
+      await manager.update(Notification, { postId, deletedAt: IsNull() }, { deletedAt });
+      post.deletedAt = deletedAt;
+      await manager.save(Post, post);
+    });
 
     await this.invalidateFeedCache(userId);
     return { message: 'Post deleted successfully' };

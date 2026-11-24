@@ -8,6 +8,8 @@ import { Repository, In } from 'typeorm';
 import { Place } from '../entities/place.entity';
 import { ItemComment } from '../entities/item-comment.entity';
 import { User } from '../entities/user.entity';
+import { CreatePlaceDto, UpdatePlaceDto } from './dto/place.dto';
+import { applyHaversineGeoFilter } from '../common/utils/geo.util';
 
 @Injectable()
 export class PlacesService {
@@ -27,57 +29,12 @@ export class PlacesService {
     lat?: number,
     lng?: number,
     radiusKm?: number,
-  ): Promise<any[]> {
+  ): Promise<ReturnType<Place['toObject']>[]> {
     const qb = this.placeRepo.createQueryBuilder('p');
-
-    const hasCoords =
-      lat !== undefined &&
-      lat !== null &&
-      !isNaN(Number(lat)) &&
-      lng !== undefined &&
-      lng !== null &&
-      !isNaN(Number(lng));
-
-    const userLat = hasCoords ? Number(lat) : null;
-    const userLng = hasCoords ? Number(lng) : null;
-    const radius =
-      radiusKm !== undefined &&
-      radiusKm !== null &&
-      !isNaN(Number(radiusKm)) &&
-      Number(radiusKm) > 0
-        ? Number(radiusKm)
-        : null;
-
-    if (hasCoords && userLat !== null && userLng !== null) {
-      // PostgreSQL Haversine formülü (km cinsinden)
-      const haversineFormula = `(6371 * acos(least(1.0, greatest(-1.0, cos(radians(:lat)) * cos(radians(p.latitude)) * cos(radians(p.longitude) - radians(:lng)) + sin(radians(:lat)) * sin(radians(p.latitude))))))`;
-
-      qb.addSelect(haversineFormula, 'distance').setParameters({
-        lat: userLat,
-        lng: userLng,
-      });
-
-      if (radius) {
-        // Yarıçap filtresi: Sadece koordinatı olan ve mesafe <= radiusKm olan kayıtlar
-        qb.andWhere(
-          `p.latitude IS NOT NULL AND p.longitude IS NOT NULL AND ${haversineFormula} <= :radius`,
-          { radius },
-        );
-      }
-
-      // En yakındakiler önce gelsin, mesafesi olmayanlar en sona düşsün
-      qb.orderBy(
-        'CASE WHEN p.latitude IS NOT NULL AND p.longitude IS NOT NULL THEN 0 ELSE 1 END',
-        'ASC',
-      )
-        .addOrderBy('distance', 'ASC')
-        .addOrderBy('p.createdAt', 'DESC');
-    } else {
-      qb.orderBy('p.createdAt', 'DESC');
-    }
+    const { hasCoords, hasRadius } = applyHaversineGeoFilter(qb, 'p', lat, lng, radiusKm);
 
     // Yarıçap belirtilmemişse şehir filtresi uygula
-    if (city && city.trim() && !radius) {
+    if (city && city.trim() && !hasRadius) {
       const cleanCity = city.split('-')[0].trim();
       qb.andWhere('(p.city ILIKE :city OR p.city ILIKE :cleanCity)', {
         city: `%${city}%`,
@@ -99,10 +56,10 @@ export class PlacesService {
             : null;
         return place.toObject(parsedDist);
       });
-    } else {
-      const items = await qb.getMany();
-      return items.map((i) => i.toObject());
     }
+
+    const items = await qb.getMany();
+    return items.map((i) => i.toObject());
   }
 
   async findMyPlaces(userId: string): Promise<any[]> {
@@ -119,48 +76,57 @@ export class PlacesService {
     return item.toObject();
   }
 
-  async create(userId: string, data: any): Promise<any> {
-    const lat =
-      data.latitude !== undefined && data.latitude !== null && data.latitude !== ''
-        ? Number(data.latitude)
-        : null;
-    const lng =
-      data.longitude !== undefined && data.longitude !== null && data.longitude !== ''
-        ? Number(data.longitude)
-        : null;
-
+  async create(userId: string, data: CreatePlaceDto): Promise<ReturnType<Place['toObject']>> {
     const place = this.placeRepo.create({
-      ...data,
       name: data.title || data.name || 'İsimsiz Yer',
+      description: data.description ?? '',
+      imageUrl: data.imageUrl ?? null,
+      images: data.images || (data.imageUrl ? [data.imageUrl] : []),
+      city: data.city ?? '',
+      businessName: data.businessName ?? '',
+      category: data.category ?? '',
+      address: data.address ?? '',
+      phone: data.phone ?? '',
+      workingHours: data.workingHours ?? '',
+      entryFee: data.entryFee ?? 'Ücretsiz',
       userId,
       likes: [],
-      images: data.images || (data.imageUrl ? [data.imageUrl] : []),
       commentCount: 0,
-      latitude: lat,
-      longitude: lng,
-    } as Partial<Place>);
-    const saved = await this.placeRepo.save(place as Place);
-    return (saved as Place).toObject();
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+    });
+    const saved = await this.placeRepo.save(place);
+    return saved.toObject();
   }
 
-  async update(id: string, userId: string, userRole: string, data: any): Promise<any> {
+  async update(
+    id: string,
+    userId: string,
+    userRole: string,
+    data: UpdatePlaceDto,
+  ): Promise<ReturnType<Place['toObject']>> {
     const place = await this.placeRepo.findOne({ where: { id } });
     if (!place) throw new NotFoundException('Yer/İşletme bulunamadı');
 
     const canEdit = place.userId === userId || ['admin', 'super_admin', 'moderator'].includes(userRole);
     if (!canEdit) throw new ForbiddenException('Bu yeri düzenleme yetkiniz yok');
 
-    if (data.title && !data.name) data.name = data.title;
-    if (data.latitude !== undefined) {
-      data.latitude =
-        data.latitude !== null && data.latitude !== '' ? Number(data.latitude) : null;
-    }
-    if (data.longitude !== undefined) {
-      data.longitude =
-        data.longitude !== null && data.longitude !== '' ? Number(data.longitude) : null;
-    }
+    // Yalnızca izin verilen alanları güncelle (mass assignment engeli)
+    if (data.name !== undefined) place.name = data.name;
+    else if (data.title !== undefined) place.name = data.title;
+    if (data.description !== undefined) place.description = data.description;
+    if (data.imageUrl !== undefined) place.imageUrl = data.imageUrl;
+    if (data.images !== undefined) place.images = data.images;
+    if (data.city !== undefined) place.city = data.city;
+    if (data.latitude !== undefined) place.latitude = data.latitude;
+    if (data.longitude !== undefined) place.longitude = data.longitude;
+    if (data.businessName !== undefined) place.businessName = data.businessName;
+    if (data.category !== undefined) place.category = data.category;
+    if (data.address !== undefined) place.address = data.address;
+    if (data.phone !== undefined) place.phone = data.phone;
+    if (data.workingHours !== undefined) place.workingHours = data.workingHours;
+    if (data.entryFee !== undefined) place.entryFee = data.entryFee;
 
-    Object.assign(place, data);
     const updated = await this.placeRepo.save(place);
     return updated.toObject();
   }

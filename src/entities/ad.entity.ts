@@ -12,11 +12,17 @@ export enum AdType {
   VIDEO = 'video',
 }
 
+export enum AdScope {
+  NATIONAL = 'national',
+  REGIONAL = 'regional',
+}
+
 export enum AdStatus {
   ACTIVE = 'active',
   PAUSED = 'paused',
   EXPIRED = 'expired',
   DRAFT = 'draft',
+  PENDING_REVIEW = 'pending_review',
 }
 
 @Entity('ads')
@@ -62,6 +68,21 @@ export class Ad {
 
   @Column({ type: 'varchar', length: 64, nullable: true, default: null })
   createdBy: string | null;
+
+  @Column({ type: 'varchar', length: 32, default: AdScope.NATIONAL })
+  scope: AdScope;
+
+  @Column({ type: 'varchar', length: 100, nullable: true, default: null })
+  city: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  isFreeTier: boolean;
+
+  @Column({ type: 'varchar', length: 30, nullable: true, default: null })
+  businessPhone: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  packageId: string | null;
 
   @Column({ type: 'int', default: 0 })
   maxImpressions: number;

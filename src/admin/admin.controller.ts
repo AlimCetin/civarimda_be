@@ -20,10 +20,20 @@ import { AdminService } from './admin.service';
 import { BanUserDto } from './dto/ban-user.dto';
 import { ChangeRoleDto } from './dto/change-role.dto';
 import { ActivityType } from '../entities/activity-log.entity';
+import { StorageService } from '../common/storage/storage.service';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private adminService: AdminService) {}
+  constructor(
+    private adminService: AdminService,
+    private readonly storageService: StorageService,
+  ) {}
+
+  @Get('storage-quota')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async getStorageQuota() {
+    return this.storageService.getQuotaStatus();
+  }
 
   @Get('dashboard')
   @UseGuards(JwtAuthGuard, ModeratorGuard)
