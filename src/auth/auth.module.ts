@@ -9,6 +9,7 @@ import { User } from '../entities/user.entity';
 import { UserCredentials } from '../entities/user-credentials.entity';
 import { JwtStrategy } from '../strategies/jwt.strategy';
 import { AppLoggerService } from '../common/logger/logger.service';
+import { SuperAdminBootstrapService } from './super-admin-bootstrap.service';
 
 @Module({
   imports: [
@@ -30,7 +31,7 @@ import { AppLoggerService } from '../common/logger/logger.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, AppLoggerService],
+  providers: [AuthService, JwtStrategy, AppLoggerService, SuperAdminBootstrapService],
   exports: [AuthService],
 })
 export class AuthModule {}

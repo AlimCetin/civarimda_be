@@ -24,6 +24,9 @@ async function bootstrap() {
     bodyParser: false, // Disable default body parser to configure custom limits
   });
 
+  // Render / Cloudflare gibi ters vekillerin arkasında gerçek istemci IP'sini al
+  app.set('trust proxy', 1);
+
   // Uploads klasörünü statik olarak sun (MIME sniffing'e karşı nosniff başlığı ile)
   app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
